@@ -117,7 +117,7 @@ def main():
     build_p = subparsers.add_parser("build", help="Build skill from URL")
     build_p.add_argument("url", help="Documentation URL")
     build_p.add_argument("name", help="Skill name")
-    build_p.add_argument("-o", "--output", default="./skills", help="Output directory")
+    build_p.add_argument("-o", "--output", default="./.agents/skills", help="Output directory (default: .agents/skills)")
     build_p.add_argument("--description", help="Skill description")
     build_p.add_argument("--keep-raw", action="store_true", help="Keep raw markdown")
     add_common_args(build_p)
