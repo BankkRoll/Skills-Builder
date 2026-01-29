@@ -4,14 +4,19 @@ A collection of **28 pre-built Claude Code skills** scraped from popular documen
 
 [![Skills](https://img.shields.io/badge/skills-28-blue)](DIRECTORY.md)
 [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
+[![skills.sh](https://img.shields.io/badge/skills.sh-docs-purple)](https://skills.sh/docs)
 
 ## Quick Start
+
+Install skills using [skills.sh](https://skills.sh):
 
 ```bash
 npx skills add BankkRoll/Skills-Builder
 ```
 
 Select the skills you want from the interactive menu.
+
+> **New to skills?** Check out the [skills.sh documentation](https://skills.sh/docs) to learn more.
 
 ## Build Your Own
 
@@ -68,10 +73,15 @@ Once installed, invoke any skill as a slash command:
 
 ```
 /nextjs        # Next.js documentation
-/prisma        # Prisma ORM reference
-/tailwindcss   # Tailwind CSS utilities
-/stripe-api    # Stripe API reference
+/fastapi       # FastAPI reference
+/react         # React documentation
+/openai-api    # OpenAI API reference
 ```
+
+## Resources
+
+- [skills.sh](https://skills.sh) - Browse and install Claude Code skills
+- [Documentation](https://skills.sh/docs) - Learn how to use and build skills
 
 ## Contributing
 
