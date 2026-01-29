@@ -1,0 +1,1295 @@
+# cookie and more
+
+# cookie
+
+Note
+
+        This page was generated from the [cookie-session README](https://github.com/expressjs/cookie-session).
+
+# cookie-session
+
+Simple cookie-based session middleware.
+
+A user session can be stored in two main ways with cookies: on the server or on
+the client. This module stores the session data on the client within a cookie,
+while a module like [express-session](https://www.npmjs.com/package/express-session)
+stores only a session identifier on the client within a cookie and stores the
+session data on the server, typically in a database.
+
+The following points can help you choose which to use:
+
+- `cookie-session` does not require any database / resources on the server side,
+  though the total session data cannot exceed the browser’s max cookie size.
+- `cookie-session` can simplify certain load-balanced scenarios.
+- `cookie-session` can be used to store a “light” session and include an identifier
+  to look up a database-backed secondary store to reduce database lookups.
+
+**NOTE** This module does not encrypt the session contents in the cookie, only provides
+signing to prevent tampering. The client will be able to read the session data by
+examining the cookie’s value. Secret data should not be set in `req.session` without
+encrypting it, or use a server-side session instead.
+
+**NOTE** This module does not prevent session replay, as the expiration set is that
+of the cookie only; if that is a concern of your application, you can store an expiration
+date in `req.session` object and validate it on the server, and implement any other logic
+to extend the session as your application needs.
+
+## Install
+
+This is a [Node.js](https://nodejs.org/en/) module available through the
+[npm registry](https://www.npmjs.com/). Installation is done using the
+[npm installcommand](https://docs.npmjs.com/getting-started/installing-npm-packages-locally):
+
+```
+$ npm install cookie-session
+```
+
+## API
+
+```
+var cookieSession = require('cookie-session')
+var express = require('express')
+
+var app = express()
+
+app.use(cookieSession({
+  name: 'session',
+  keys: [/* secret keys */],
+
+  // Cookie Options
+  maxAge: 24 * 60 * 60 * 1000 // 24 hours
+}))
+```
+
+### cookieSession(options)
+
+Create a new cookie session middleware with the provided options. This middleware
+will attach the property `session` to `req`, which provides an object representing
+the loaded session. This session is either a new session if no valid session was
+provided in the request, or a loaded session from the request.
+
+The middleware will automatically add a `Set-Cookie` header to the response if the
+contents of `req.session` were altered. *Note* that no `Set-Cookie` header will be
+in the response (and thus no session created for a specific user) unless there are
+contents in the session, so be sure to add something to `req.session` as soon as
+you have identifying information to store for the session.
+
+#### Options
+
+Cookie session accepts these properties in the options object.
+
+##### name
+
+The name of the cookie to set, defaults to `session`.
+
+##### keys
+
+The list of keys to use to sign & verify cookie values, or a configured
+[Keygrip](https://www.npmjs.com/package/keygrip) instance. Set cookies are always
+signed with `keys[0]`, while the other keys are valid for verification, allowing
+for key rotation. If a `Keygrip` instance is provided, it can be used to
+change signature parameters like the algorithm of the signature.
+
+##### secret
+
+A string which will be used as single key if `keys` is not provided.
+
+##### Cookie Options
+
+Other options are passed to `cookies.get()` and `cookies.set()` allowing you
+to control security, domain, path, and signing among other settings.
+
+The options can also contain any of the following (for the full list, see
+[cookies module documentation](https://www.npmjs.org/package/cookies#readme):
+
+- `maxAge`: a number representing the milliseconds from `Date.now()` for expiry
+- `expires`: a `Date` object indicating the cookie’s expiration date (expires at the end of session by default).
+- `path`: a string indicating the path of the cookie (`/` by default).
+- `domain`: a string indicating the domain of the cookie (no default).
+- `partitioned`: a boolean indicating whether to partition the cookie in Chrome for the [CHIPS Update](https://developers.google.com/privacy-sandbox/3pcd/chips) (`false` by default). If this is true, Cookies from embedded sites will be partitioned and only readable from the same top level site from which it was created.
+- `priority`: a string indicating the cookie priority. This can be set to `'low'`, `'medium'`, or `'high'`.
+- `sameSite`: a boolean or string indicating whether the cookie is a “same site” cookie (`false` by default). This can be set to `'strict'`, `'lax'`, `'none'`, or `true` (which maps to `'strict'`).
+- `secure`: a boolean indicating whether the cookie is only to be sent over HTTPS (`false` by default for HTTP, `true` by default for HTTPS). If this is set to `true` and Node.js is not directly over a TLS connection, be sure to read how to [setup Express behind proxies](https://expressjs.com/en/guide/behind-proxies.html) or the cookie may not ever set correctly.
+- `httpOnly`: a boolean indicating whether the cookie is only to be sent over HTTP(S), and not made available to client JavaScript (`true` by default).
+- `signed`: a boolean indicating whether the cookie is to be signed (`true` by default).
+- `overwrite`: a boolean indicating whether to overwrite previously set cookies of the same name (`true` by default).
+
+### req.session
+
+Represents the session for the given request.
+
+#### .isChanged
+
+Is `true` if the session has been changed during the request.
+
+#### .isNew
+
+Is `true` if the session is new.
+
+#### .isPopulated
+
+Determine if the session has been populated with data or is empty.
+
+### req.sessionOptions
+
+Represents the session options for the current request. These options are a
+shallow clone of what was provided at middleware construction and can be
+altered to change cookie setting behavior on a per-request basis.
+
+### Destroying a session
+
+To destroy a session simply set it to `null`:
+
+```
+req.session = null
+```
+
+### Saving a session
+
+Since the entire contents of the session is kept in a client-side cookie, the
+session is “saved” by writing a cookie out in a `Set-Cookie` response header.
+This is done automatically if there has been a change made to the session when
+the Node.js response headers are being written to the client and the session
+was not destroyed.
+
+## Examples
+
+### Simple view counter example
+
+```
+var cookieSession = require('cookie-session')
+var express = require('express')
+
+var app = express()
+
+app.set('trust proxy', 1) // trust first proxy
+
+app.use(cookieSession({
+  name: 'session',
+  keys: ['key1', 'key2']
+}))
+
+app.get('/', function (req, res, next) {
+  // Update views
+  req.session.views = (req.session.views || 0) + 1
+
+  // Write response
+  res.end(req.session.views + ' views')
+})
+
+app.listen(3000)
+```
+
+### Per-user sticky max age
+
+```
+var cookieSession = require('cookie-session')
+var express = require('express')
+
+var app = express()
+
+app.set('trust proxy', 1) // trust first proxy
+
+app.use(cookieSession({
+  name: 'session',
+  keys: ['key1', 'key2']
+}))
+
+// This allows you to set req.session.maxAge to let certain sessions
+// have a different value than the default.
+app.use(function (req, res, next) {
+  req.sessionOptions.maxAge = req.session.maxAge || req.sessionOptions.maxAge
+  next()
+})
+
+// ... your logic here ...
+```
+
+### Extending the session expiration
+
+This module does not send a `Set-Cookie` header if the contents of the session
+have not changed. This means that to extend the expiration of a session in the
+user’s browser (in response to user activity, for example) some kind of
+modification to the session needs be made.
+
+```
+var cookieSession = require('cookie-session')
+var express = require('express')
+
+var app = express()
+
+app.use(cookieSession({
+  name: 'session',
+  keys: ['key1', 'key2']
+}))
+
+// Update a value in the cookie so that the set-cookie will be sent.
+// Only changes every minute so that it's not sent with every request.
+app.use(function (req, res, next) {
+  req.session.nowInMinutes = Math.floor(Date.now() / 60e3)
+  next()
+})
+
+// ... your logic here ...
+```
+
+### Using a custom signature algorithm
+
+This example shows creating a custom `Keygrip` instance as the `keys` option
+to provide keys and additional signature configuration.
+
+```
+var cookieSession = require('cookie-session')
+var express = require('express')
+var Keygrip = require('keygrip')
+
+var app = express()
+
+app.use(cookieSession({
+  name: 'session',
+  keys: new Keygrip(['key1', 'key2'], 'SHA384', 'base64')
+}))
+
+// ... your logic here ...
+```
+
+## Usage Limitations
+
+### Max Cookie Size
+
+Because the entire session object is encoded and stored in a cookie, it is
+possible to exceed the maximum cookie size limits on different browsers. The
+[RFC6265 specification](https://tools.ietf.org/html/rfc6265#section-6.1)
+recommends that a browser **SHOULD** allow
+
+> At least 4096 bytes per cookie (as measured by the sum of the length of
+> the cookie’s name, value, and attributes)
+
+In practice this limit differs slightly across browsers. See a list of
+[browser limits here](http://browsercookielimits.iain.guru). As a rule
+of thumb **don’t exceed 4093 bytes per domain**.
+
+If your session object is large enough to exceed a browser limit when encoded,
+in most cases the browser will refuse to store the cookie. This will cause the
+following requests from the browser to either a) not have any session
+information or b) use old session information that was small enough to not
+exceed the cookie limit.
+
+If you find your session object is hitting these limits, it is best to
+consider if  data in your session should be loaded from a database on the
+server instead of transmitted to/from the browser with every request. Or
+move to an [alternative session strategy](https://github.com/expressjs/session#compatible-session-stores)
+
+## License
+
+[MIT](https://expressjs.com/zh-tw/resources/middleware/LICENSE)
+
+---
+
+# cors
+
+Note
+
+        This page was generated from the [cors README](https://github.com/expressjs/cors).
+
+# cors
+
+CORS is a [Node.js](https://nodejs.org/en/) middleware for [Express](https://expressjs.com/)/[Connect](https://github.com/senchalabs/connect) that sets [CORS](https://developer.mozilla.org/en-US/docs/Web/HTTP/Guides/CORS) response headers. These headers tell browsers which origins can read responses from your server.
+
+> [!IMPORTANT]
+> **How CORS Works:** This package sets response headers—it doesn’t block requests. CORS is enforced by browsers: they check the headers and decide if JavaScript can read the response. Non-browser clients (curl, Postman, other servers) ignore CORS entirely. See the [MDN CORS guide](https://developer.mozilla.org/en-US/docs/Web/HTTP/Guides/CORS) for details.
+
+- [Installation](#installation)
+- [Usage](#usage)
+  - [Simple Usage](#simple-usage-enable-all-cors-requests)
+  - [Enable CORS for a Single Route](#enable-cors-for-a-single-route)
+  - [Configuring CORS](#configuring-cors)
+  - [Configuring CORS w/ Dynamic Origin](#configuring-cors-w-dynamic-origin)
+  - [Enabling CORS Pre-Flight](#enabling-cors-pre-flight)
+  - [Customizing CORS Settings Dynamically per Request](#customizing-cors-settings-dynamically-per-request)
+- [Configuration Options](#configuration-options)
+- [Common Misconceptions](#common-misconceptions)
+- [License](#license)
+- [Original Author](#original-author)
+
+## Installation
+
+This is a [Node.js](https://nodejs.org/en/) module available through the
+[npm registry](https://www.npmjs.com/). Installation is done using the
+[npm installcommand](https://docs.npmjs.com/downloading-and-installing-packages-locally):
+
+```
+$ npm install cors
+```
+
+## Usage
+
+### Simple Usage (EnableAllCORS Requests)
+
+```
+var express = require('express')
+var cors = require('cors')
+var app = express()
+
+// Adds headers: Access-Control-Allow-Origin: *
+app.use(cors())
+
+app.get('/products/:id', function (req, res, next) {
+  res.json({msg: 'Hello'})
+})
+
+app.listen(80, function () {
+  console.log('web server listening on port 80')
+})
+```
+
+### Enable CORS for a Single Route
+
+```
+var express = require('express')
+var cors = require('cors')
+var app = express()
+
+// Adds headers: Access-Control-Allow-Origin: *
+app.get('/products/:id', cors(), function (req, res, next) {
+  res.json({msg: 'Hello'})
+})
+
+app.listen(80, function () {
+  console.log('web server listening on port 80')
+})
+```
+
+### Configuring CORS
+
+See the [configuration options](#configuration-options) for details.
+
+```
+var express = require('express')
+var cors = require('cors')
+var app = express()
+
+var corsOptions = {
+  origin: 'http://example.com',
+  optionsSuccessStatus: 200 // some legacy browsers (IE11, various SmartTVs) choke on 204
+}
+
+// Adds headers: Access-Control-Allow-Origin: http://example.com, Vary: Origin
+app.get('/products/:id', cors(corsOptions), function (req, res, next) {
+  res.json({msg: 'Hello'})
+})
+
+app.listen(80, function () {
+  console.log('web server listening on port 80')
+})
+```
+
+### Configuring CORS w/ Dynamic Origin
+
+This module supports validating the origin dynamically using a function provided
+to the `origin` option. This function will be passed a string that is the origin
+(or `undefined` if the request has no origin), and a `callback` with the signature
+`callback(error, origin)`.
+
+The `origin` argument to the callback can be any value allowed for the `origin`
+option of the middleware, except a function. See the
+[configuration options](#configuration-options) section for more information on all
+the possible value types.
+
+This function is designed to allow the dynamic loading of allowed origin(s) from
+a backing datasource, like a database.
+
+```
+var express = require('express')
+var cors = require('cors')
+var app = express()
+
+var corsOptions = {
+  origin: function (origin, callback) {
+    // db.loadOrigins is an example call to load
+    // a list of origins from a backing database
+    db.loadOrigins(function (error, origins) {
+      callback(error, origins)
+    })
+  }
+}
+
+// Adds headers: Access-Control-Allow-Origin: <matched origin>, Vary: Origin
+app.get('/products/:id', cors(corsOptions), function (req, res, next) {
+  res.json({msg: 'Hello'})
+})
+
+app.listen(80, function () {
+  console.log('web server listening on port 80')
+})
+```
+
+### Enabling CORS Pre-Flight
+
+Certain CORS requests are considered ‘complex’ and require an initial
+`OPTIONS` request (called the “pre-flight request”). An example of a
+‘complex’ CORS request is one that uses an HTTP verb other than
+GET/HEAD/POST (such as DELETE) or that uses custom headers. To enable
+pre-flighting, you must add a new OPTIONS handler for the route you want
+to support:
+
+```
+var express = require('express')
+var cors = require('cors')
+var app = express()
+
+app.options('/products/:id', cors()) // preflight for DELETE
+app.del('/products/:id', cors(), function (req, res, next) {
+  res.json({msg: 'Hello'})
+})
+
+app.listen(80, function () {
+  console.log('web server listening on port 80')
+})
+```
+
+You can also enable pre-flight across-the-board like so:
+
+```
+app.options('*', cors()) // include before other routes
+```
+
+NOTE: When using this middleware as an application level middleware (for
+example, `app.use(cors())`), pre-flight requests are already handled for all
+routes.
+
+### Customizing CORS Settings Dynamically per Request
+
+For APIs that require different CORS configurations for specific routes or requests, you can dynamically generate CORS options based on the incoming request. The `cors` middleware allows you to achieve this by passing a function instead of static options. This function is called for each incoming request and must use the callback pattern to return the appropriate CORS options.
+
+The function accepts:
+
+1. **req**:
+  - The incoming request object.
+2. **callback(error, corsOptions)**:
+  - A function used to return the computed CORS options.
+  - **Arguments**:
+    - **error**: Pass `null` if there’s no error, or an error object to indicate a failure.
+    - **corsOptions**: An object specifying the CORS policy for the current request.
+
+Here’s an example that handles both public routes and restricted, credential-sensitive routes:
+
+```
+var dynamicCorsOptions = function(req, callback) {
+  var corsOptions;
+  if (req.path.startsWith('/auth/connect/')) {
+    // Access-Control-Allow-Origin: http://mydomain.com, Access-Control-Allow-Credentials: true, Vary: Origin
+    corsOptions = {
+      origin: 'http://mydomain.com',
+      credentials: true
+    };
+  } else {
+    // Access-Control-Allow-Origin: *
+    corsOptions = { origin: '*' };
+  }
+  callback(null, corsOptions);
+};
+
+app.use(cors(dynamicCorsOptions));
+
+app.get('/auth/connect/twitter', function (req, res) {
+  res.send('Hello');
+});
+
+app.get('/public', function (req, res) {
+  res.send('Hello');
+});
+
+app.listen(80, function () {
+  console.log('web server listening on port 80')
+})
+```
+
+## Configuration Options
+
+- `origin`: Configures the **Access-Control-Allow-Origin** CORS header. Possible values:
+  - `Boolean` - set `origin` to `true` to reflect the [request origin](https://datatracker.ietf.org/doc/html/draft-abarth-origin-09), as defined by `req.header('Origin')`, or set it to `false` to disable CORS.
+  - `String` - set `origin` to a specific origin. For example, if you set it to
+    - `"http://example.com"` only requests from “http://example.com” will be allowed.
+    - `"*"` for all domains to be allowed.
+  - `RegExp` - set `origin` to a regular expression pattern which will be used to test the request origin. If it’s a match, the request origin will be reflected. For example the pattern `/example\.com$/` will reflect any request that is coming from an origin ending with “example.com”.
+  - `Array` - set `origin` to an array of valid origins. Each origin can be a `String` or a `RegExp`. For example `["http://example1.com", /\.example2\.com$/]` will accept any request from “http://example1.com” or from a subdomain of “example2.com”.
+  - `Function` - set `origin` to a function implementing some custom logic. The function takes the request origin as the first parameter and a callback (called as `callback(err, origin)`, where `origin` is a non-function value of the `origin` option) as the second.
+- `methods`: Configures the **Access-Control-Allow-Methods** CORS header. Expects a comma-delimited string (ex: ‘GET,PUT,POST’) or an array (ex: `['GET', 'PUT', 'POST']`).
+- `allowedHeaders`: Configures the **Access-Control-Allow-Headers** CORS header. Expects a comma-delimited string (ex: ‘Content-Type,Authorization’) or an array (ex: `['Content-Type', 'Authorization']`). If not specified, defaults to reflecting the headers specified in the request’s **Access-Control-Request-Headers** header.
+- `exposedHeaders`: Configures the **Access-Control-Expose-Headers** CORS header. Expects a comma-delimited string (ex: ‘Content-Range,X-Content-Range’) or an array (ex: `['Content-Range', 'X-Content-Range']`). If not specified, no custom headers are exposed.
+- `credentials`: Configures the **Access-Control-Allow-Credentials** CORS header. Set to `true` to pass the header, otherwise it is omitted.
+- `maxAge`: Configures the **Access-Control-Max-Age** CORS header. Set to an integer to pass the header, otherwise it is omitted.
+- `preflightContinue`: Pass the CORS preflight response to the next handler.
+- `optionsSuccessStatus`: Provides a status code to use for successful `OPTIONS` requests, since some legacy browsers (IE11, various SmartTVs) choke on `204`.
+
+The default configuration is the equivalent of:
+
+```
+{
+  "origin": "*",
+  "methods": "GET,HEAD,PUT,PATCH,POST,DELETE",
+  "preflightContinue": false,
+  "optionsSuccessStatus": 204
+}
+```
+
+## Common Misconceptions
+
+### “CORS blocks requests from disallowed origins”
+
+**No.** Your server receives and processes every request. CORS headers tell the browser whether JavaScript can read the response—not whether the request is allowed.
+
+### “CORS protects my API from unauthorized access”
+
+**No.** CORS is not access control. Any HTTP client (curl, Postman, another server) can call your API regardless of CORS settings. Use authentication and authorization to protect your API.
+
+### “Settingorigin: 'http://example.com'means only that domain can access my server”
+
+**No.** It means browsers will only let JavaScript from that origin read responses. The server still responds to all requests.
+
+## License
+
+[MIT License](http://www.opensource.org/licenses/mit-license.php)
+
+## Original Author
+
+[Troy Goode](https://github.com/TroyGoode) ([[email protected]](https://expressjs.com/cdn-cgi/l/email-protection#cabeb8a5b3ada5a5aeaf8aada7aba3a6e4a9a5a7))
+
+---
+
+# errorhandler
+
+Note
+
+        This page was generated from the [errorhandler README](https://github.com/expressjs/errorhandler).
+
+# errorhandler
+
+Development-only error handler middleware.
+
+This middleware is only intended to be used in a development environment, as
+the *full error stack traces and internal details of any object passed to this
+module* will be sent back to the client when an error occurs.
+
+When an object is provided to Express as an error, this module will display
+as much about this object as possible, and will do so by using content negotiation
+for the response between HTML, JSON, and plain text.
+
+- When the object is a standard `Error` object, the string provided by the
+  `stack` property will be returned in HTML/text responses.
+- When the object is a non-`Error` object, the result of
+  [util.inspect](https://nodejs.org/api/util.html#util_util_inspect_object_options)
+  will be returned in HTML/text responses.
+- For JSON responses, the result will be an object with all enumerable properties
+  from the object in the response.
+
+## Install
+
+This is a [Node.js](https://nodejs.org/en/) module available through the
+[npm registry](https://www.npmjs.com/). Installation is done using the
+[npm installcommand](https://docs.npmjs.com/getting-started/installing-npm-packages-locally):
+
+```
+$ npm install errorhandler
+```
+
+## API
+
+  eslint-disable no-unused-vars
+
+```
+var errorhandler = require('errorhandler')
+```
+
+### errorhandler(options)
+
+Create new middleware to handle errors and respond with content negotiation.
+
+#### Options
+
+Error handler accepts these properties in the options object.
+
+##### log
+
+Provide a function to be called with the error and a string representation of
+the error. Can be used to write the error to any desired location, or set to
+`false` to only send the error back in the response. Called as
+`log(err, str, req, res)` where `err` is the `Error` object, `str` is a string
+representation of the error, `req` is the request object and `res` is the
+response object (note, this function is invoked *after* the response has been
+written).
+
+The default value for this option is `true` unless `process.env.NODE_ENV === 'test'`.
+
+Possible values:
+
+- `true`: Log errors using `console.error(str)`.
+- `false`: Only send the error back in the response.
+- A function: pass the error to a function for handling.
+
+## Examples
+
+### Simple example
+
+Basic example of adding this middleware as the error handler only in development
+with `connect` (`express` also can be used in this example).
+
+```
+var connect = require('connect')
+var errorhandler = require('errorhandler')
+
+var app = connect()
+
+// assumes NODE_ENV is set by the user
+if (process.env.NODE_ENV === 'development') {
+  // only use in development
+  app.use(errorhandler())
+}
+```
+
+### Custom output location
+
+Sometimes you may want to output the errors to a different location than STDERR
+during development, like a system notification, for example.
+
+  eslint-disable handle-callback-err
+
+```
+var connect = require('connect')
+var errorhandler = require('errorhandler')
+var notifier = require('node-notifier')
+
+var app = connect()
+
+// assumes NODE_ENV is set by the user
+if (process.env.NODE_ENV === 'development') {
+  // only use in development
+  app.use(errorhandler({ log: errorNotification }))
+}
+
+function errorNotification (err, str, req) {
+  var title = 'Error in ' + req.method + ' ' + req.url
+
+  notifier.notify({
+    title: title,
+    message: str
+  })
+}
+```
+
+## License
+
+[MIT](https://expressjs.com/zh-tw/resources/middleware/LICENSE)
+
+---
+
+# method
+
+Note
+
+        This page was generated from the [method-override README](https://github.com/expressjs/method-override).
+
+# method-override
+
+Lets you use HTTP verbs such as PUT or DELETE in places where the client doesn’t support it.
+
+## Install
+
+This is a [Node.js](https://nodejs.org/en/) module available through the
+[npm registry](https://www.npmjs.com/). Installation is done using the
+[npm installcommand](https://docs.npmjs.com/getting-started/installing-npm-packages-locally):
+
+```
+$ npm install method-override
+```
+
+## API
+
+**NOTE** It is very important that this module is used **before** any module that
+needs to know the method of the request (for example, it *must* be used prior to
+the `csurf` module).
+
+### methodOverride(getter, options)
+
+Create a new middleware function to override the `req.method` property with a new
+value. This value will be pulled from the provided `getter`.
+
+- `getter` - The getter to use to look up the overridden request method for the request. (default: `X-HTTP-Method-Override`)
+- `options.methods` - The allowed methods the original request must be in to check for a method override value. (default: `['POST']`)
+
+If the found method is supported by node.js core, then `req.method` will be set to
+this value, as if it has originally been that value. The previous `req.method`
+value will be stored in `req.originalMethod`.
+
+#### getter
+
+This is the method of getting the override value from the request. If a function is provided,
+the `req` is passed as the first argument, the `res` as the second argument and the method is
+expected to be returned. If a string is provided, the string is used to look up the method
+with the following rules:
+
+- If the string starts with `X-`, then it is treated as the name of a header and that header
+  is used for the method override. If the request contains the same header multiple times, the
+  first occurrence is used.
+- All other strings are treated as a key in the URL query string.
+
+#### options.methods
+
+This allows the specification of what methods(s) the request *MUST* be in in order to check for
+the method override value. This defaults to only `POST` methods, which is the only method the
+override should arrive in. More methods may be specified here, but it may introduce security
+issues and cause weird behavior when requests travel through caches. This value is an array
+of methods in upper-case. `null` can be specified to allow all methods.
+
+## Examples
+
+### override using a header
+
+To use a header to override the method, specify the header name
+as a string argument to the `methodOverride` function. To then make
+the call, send  a `POST` request to a URL with the overridden method
+as the value of that header. This method of using a header would
+typically be used in conjunction with `XMLHttpRequest` on implementations
+that do not support the method you are trying to use.
+
+```
+const express = require('express')
+const methodOverride = require('method-override')
+const app = express()
+
+// override with the X-HTTP-Method-Override header in the request
+app.use(methodOverride('X-HTTP-Method-Override'))
+```
+
+Example call with header override using `XMLHttpRequest`:
+
+  eslint-env browser
+
+```
+const xhr = new XMLHttpRequest()
+xhr.onload = onload
+xhr.open('post', '/resource', true)
+xhr.setRequestHeader('X-HTTP-Method-Override', 'DELETE')
+xhr.send()
+
+function onload () {
+  alert('got response: ' + this.responseText)
+}
+```
+
+### override using a query value
+
+To use a query string value to override the method, specify the query
+string key as a string argument to the `methodOverride` function. To
+then make the call, send  a `POST` request to a URL with the overridden
+method as the value of that query string key. This method of using a
+query value would typically be used in conjunction with plain HTML
+`<form>` elements when trying to support legacy browsers but still use
+newer methods.
+
+```
+const express = require('express')
+const methodOverride = require('method-override')
+const app = express()
+
+// override with POST having ?_method=DELETE
+app.use(methodOverride('_method'))
+```
+
+Example call with query override using HTML `<form>`:
+
+```
+<form method="POST" action="/resource?_method=DELETE">
+  <button type="submit">Delete resource</button>
+</form>
+```
+
+### multiple format support
+
+```
+const express = require('express')
+const methodOverride = require('method-override')
+const app = express()
+
+// override with different headers; last one takes precedence
+app.use(methodOverride('X-HTTP-Method')) //          Microsoft
+app.use(methodOverride('X-HTTP-Method-Override')) // Google/GData
+app.use(methodOverride('X-Method-Override')) //      IBM
+```
+
+### custom logic
+
+You can implement any kind of custom logic with a function for the `getter`. The following
+implements the logic for looking in `req.body` that was in `method-override@1`:
+
+```
+const bodyParser = require('body-parser')
+const express = require('express')
+const methodOverride = require('method-override')
+const app = express()
+
+// NOTE: when using req.body, you must fully parse the request body
+//       before you call methodOverride() in your middleware stack,
+//       otherwise req.body will not be populated.
+app.use(bodyParser.urlencoded())
+app.use(methodOverride(function (req, res) {
+  if (req.body && typeof req.body === 'object' && '_method' in req.body) {
+    // look in urlencoded POST bodies and delete it
+    const method = req.body._method
+    delete req.body._method
+    return method
+  }
+}))
+```
+
+Example call with query override using HTML `<form>`:
+
+```
+
+<form method="POST" action="/resource" enctype="application/x-www-form-urlencoded">
+  <input type="hidden" name="_method" value="DELETE">
+  <button type="submit">Delete resource</button>
+</form>
+```
+
+## License
+
+[MIT](https://expressjs.com/zh-tw/resources/middleware/LICENSE)
+
+---
+
+# morgan
+
+Note
+
+        This page was generated from the [morgan README](https://github.com/expressjs/morgan).
+
+# morgan
+
+HTTP request logger middleware for node.js
+
+> Named after [Dexter](http://en.wikipedia.org/wiki/Dexter_Morgan), a show you should not watch until completion.
+
+## Installation
+
+This is a [Node.js](https://nodejs.org/en/) module available through the
+[npm registry](https://www.npmjs.com/). Installation is done using the
+[npm installcommand](https://docs.npmjs.com/getting-started/installing-npm-packages-locally):
+
+```
+$ npm install morgan
+```
+
+## API
+
+  eslint-disable no-unused-vars
+
+```
+var morgan = require('morgan')
+```
+
+### morgan(format, options)
+
+Create a new morgan logger middleware function using the given `format` and `options`.
+The `format` argument may be a string of a predefined name (see below for the names),
+a string of a format string, or a function that will produce a log entry.
+
+The `format` function will be called with three arguments `tokens`, `req`, and `res`,
+where `tokens` is an object with all defined tokens, `req` is the HTTP request and `res`
+is the HTTP response. The function is expected to return a string that will be the log
+line, or `undefined` / `null` to skip logging.
+
+#### Using a predefined format string
+
+  eslint-disable no-undef
+
+```
+morgan('tiny')
+```
+
+#### Using format string of predefined tokens
+
+  eslint-disable no-undef
+
+```
+morgan(':method :url :status :res[content-length] - :response-time ms')
+```
+
+#### Using a custom format function
+
+  eslint-disable no-undef
+
+```
+morgan(function (tokens, req, res) {
+  return [
+    tokens.method(req, res),
+    tokens.url(req, res),
+    tokens.status(req, res),
+    tokens.res(req, res, 'content-length'), '-',
+    tokens['response-time'](req, res), 'ms'
+  ].join(' ')
+})
+```
+
+#### Options
+
+Morgan accepts these properties in the options object.
+
+##### immediate
+
+Write log line on request instead of response. This means that a requests will
+be logged even if the server crashes, *but data from the response (like the
+response code, content length, etc.) cannot be logged*.
+
+##### skip
+
+Function to determine if logging is skipped, defaults to `false`. This function
+will be called as `skip(req, res)`.
+
+  eslint-disable no-undef
+
+```
+// EXAMPLE: only log error responses
+morgan('combined', {
+  skip: function (req, res) { return res.statusCode < 400 }
+})
+```
+
+##### stream
+
+Output stream for writing log lines, defaults to `process.stdout`.
+
+#### Predefined Formats
+
+There are various pre-defined formats provided:
+
+##### combined
+
+Standard Apache combined log output.
+
+```
+:remote-addr - :remote-user [:date[clf]] ":method :url HTTP/:http-version" :status :res[content-length] ":referrer" ":user-agent"
+# will output
+::1 - - [27/Nov/2024:06:21:42 +0000] "GET /combined HTTP/1.1" 200 2 "-" "curl/8.7.1"
+```
+
+##### common
+
+Standard Apache common log output.
+
+```
+:remote-addr - :remote-user [:date[clf]] ":method :url HTTP/:http-version" :status :res[content-length]
+# will output
+::1 - - [27/Nov/2024:06:21:46 +0000] "GET /common HTTP/1.1" 200 2
+```
+
+##### dev
+
+Concise output colored by response status for development use. The `:status`
+token will be colored green for success codes, red for server error codes,
+yellow for client error codes, cyan for redirection codes, and uncolored
+for information codes.
+
+```
+:method :url :status :response-time ms - :res[content-length]
+# will output
+GET /dev 200 0.224 ms - 2
+```
+
+##### short
+
+Shorter than default, also including response time.
+
+```
+:remote-addr :remote-user :method :url HTTP/:http-version :status :res[content-length] - :response-time ms
+# will output
+::1 - GET /short HTTP/1.1 200 2 - 0.283 ms
+```
+
+##### tiny
+
+The minimal output.
+
+```
+:method :url :status :res[content-length] - :response-time ms
+# will output
+GET /tiny 200 2 - 0.188 ms
+```
+
+#### Tokens
+
+##### Creating new tokens
+
+To define a token, simply invoke `morgan.token()` with the name and a callback function.
+This callback function is expected to return a string value. The value returned is then
+available as “:type” in this case:
+
+  eslint-disable no-undef
+
+```
+morgan.token('type', function (req, res) { return req.headers['content-type'] })
+```
+
+Calling `morgan.token()` using the same name as an existing token will overwrite that
+token definition.
+
+The token function is expected to be called with the arguments `req` and `res`, representing
+the HTTP request and HTTP response. Additionally, the token can accept further arguments of
+it’s choosing to customize behavior.
+
+##### :date[format]
+
+The current date and time in UTC. The available formats are:
+
+- `clf` for the common log format (`"10/Oct/2000:13:55:36 +0000"`)
+- `iso` for the common ISO 8601 date time format (`2000-10-10T13:55:36.000Z`)
+- `web` for the common RFC 1123 date time format (`Tue, 10 Oct 2000 13:55:36 GMT`)
+
+If no format is given, then the default is `web`.
+
+##### :http-version
+
+The HTTP version of the request.
+
+##### :method
+
+The HTTP method of the request.
+
+##### :pid
+
+The process ID of the Node.js process handling the request.
+
+##### :referrer
+
+The Referrer header of the request. This will use the standard mis-spelled Referer header if exists, otherwise Referrer.
+
+##### :remote-addr
+
+The remote address of the request. This will use `req.ip`, otherwise the standard `req.connection.remoteAddress` value (socket address).
+
+##### :remote-user
+
+The user authenticated as part of Basic auth for the request.
+
+##### :req[header]
+
+The given `header` of the request. If the header is not present, the
+value will be displayed as `"-"` in the log.
+
+##### :res[header]
+
+The given `header` of the response. If the header is not present, the
+value will be displayed as `"-"` in the log.
+
+##### :response-time[digits]
+
+The time between the request coming into `morgan` and when the response
+headers are written, in milliseconds.
+
+The `digits` argument is a number that specifies the number of digits to
+include on the number, defaulting to `3`, which provides microsecond precision.
+
+##### :status
+
+The status code of the response.
+
+If the request/response cycle completes before a response was sent to the
+client (for example, the TCP socket closed prematurely by a client aborting
+the request), then the status will be empty (displayed as `"-"` in the log).
+
+##### :total-time[digits]
+
+The time between the request coming into `morgan` and when the response
+has finished being written out to the connection, in milliseconds.
+
+The `digits` argument is a number that specifies the number of digits to
+include on the number, defaulting to `3`, which provides microsecond precision.
+
+##### :url
+
+The URL of the request. This will use `req.originalUrl` if exists, otherwise `req.url`.
+
+##### :user-agent
+
+The contents of the User-Agent header of the request.
+
+### morgan.compile(format)
+
+Compile a format string into a `format` function for use by `morgan`. A format string
+is a string that represents a single log line and can utilize token syntax.
+Tokens are references by `:token-name`. If tokens accept arguments, they can
+be passed using `[]`, for example: `:token-name[pretty]` would pass the string
+`'pretty'` as an argument to the token `token-name`.
+
+The function returned from `morgan.compile` takes three arguments `tokens`, `req`, and
+`res`, where `tokens` is object with all defined tokens, `req` is the HTTP request and
+`res` is the HTTP response. The function will return a string that will be the log line,
+or `undefined` / `null` to skip logging.
+
+Normally formats are defined using `morgan.format(name, format)`, but for certain
+advanced uses, this compile function is directly available.
+
+## Examples
+
+### express/connect
+
+Sample app that will log all request in the Apache combined format to STDOUT
+
+```
+var express = require('express')
+var morgan = require('morgan')
+
+var app = express()
+
+app.use(morgan('combined'))
+
+app.get('/', function (req, res) {
+  res.send('hello, world!')
+})
+```
+
+### vanilla http server
+
+Sample app that will log all request in the Apache combined format to STDOUT
+
+```
+var finalhandler = require('finalhandler')
+var http = require('http')
+var morgan = require('morgan')
+
+// create "middleware"
+var logger = morgan('combined')
+
+http.createServer(function (req, res) {
+  var done = finalhandler(req, res)
+  logger(req, res, function (err) {
+    if (err) return done(err)
+
+    // respond to request
+    res.setHeader('content-type', 'text/plain')
+    res.end('hello, world!')
+  })
+})
+```
+
+### write logs to a file
+
+#### single file
+
+Sample app that will log all requests in the Apache combined format to the file
+`access.log`.
+
+```
+var express = require('express')
+var fs = require('fs')
+var morgan = require('morgan')
+var path = require('path')
+
+var app = express()
+
+// create a write stream (in append mode)
+var accessLogStream = fs.createWriteStream(path.join(__dirname, 'access.log'), { flags: 'a' })
+
+// setup the logger
+app.use(morgan('combined', { stream: accessLogStream }))
+
+app.get('/', function (req, res) {
+  res.send('hello, world!')
+})
+```
+
+#### log file rotation
+
+Sample app that will log all requests in the Apache combined format to one log
+file per day in the `log/` directory using the
+[rotating-file-stream module](https://www.npmjs.com/package/rotating-file-stream).
+
+```
+var express = require('express')
+var morgan = require('morgan')
+var path = require('path')
+var rfs = require('rotating-file-stream') // version 2.x
+
+var app = express()
+
+// create a rotating write stream
+var accessLogStream = rfs.createStream('access.log', {
+  interval: '1d', // rotate daily
+  path: path.join(__dirname, 'log')
+})
+
+// setup the logger
+app.use(morgan('combined', { stream: accessLogStream }))
+
+app.get('/', function (req, res) {
+  res.send('hello, world!')
+})
+```
+
+### split / dual logging
+
+The `morgan` middleware can be used as many times as needed, enabling
+combinations like:
+
+- Log entry on request and one on response
+- Log all requests to file, but errors to console
+- … and more!
+
+Sample app that will log all requests to a file using Apache format, but
+error responses are logged to the console:
+
+```
+var express = require('express')
+var fs = require('fs')
+var morgan = require('morgan')
+var path = require('path')
+
+var app = express()
+
+// log only 4xx and 5xx responses to console
+app.use(morgan('dev', {
+  skip: function (req, res) { return res.statusCode < 400 }
+}))
+
+// log all requests to access.log
+app.use(morgan('common', {
+  stream: fs.createWriteStream(path.join(__dirname, 'access.log'), { flags: 'a' })
+}))
+
+app.get('/', function (req, res) {
+  res.send('hello, world!')
+})
+```
+
+### use custom token formats
+
+Sample app that will use custom token formats. This adds an ID to all requests and displays it using the `:id` token.
+
+```
+var express = require('express')
+var morgan = require('morgan')
+var uuid = require('node-uuid')
+
+morgan.token('id', function getId (req) {
+  return req.id
+})
+
+var app = express()
+
+app.use(assignId)
+app.use(morgan(':id :method :url :response-time'))
+
+app.get('/', function (req, res) {
+  res.send('hello, world!')
+})
+
+function assignId (req, res, next) {
+  req.id = uuid.v4()
+  next()
+}
+```
+
+## License
+
+[MIT](https://expressjs.com/zh-tw/resources/middleware/LICENSE)

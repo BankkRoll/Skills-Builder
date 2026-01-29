@@ -1,0 +1,978 @@
+# body and more
+
+# body
+
+Note
+
+        This page was generated from the [body-parser README](https://github.com/expressjs/body-parser).
+
+# body-parser
+
+Node.js body parsing middleware.
+
+Parse incoming request bodies in a middleware before your handlers, available
+under the `req.body` property.
+
+**Note** As `req.body`’s shape is based on user-controlled input, all
+properties and values in this object are untrusted and should be validated
+before trusting. For example, `req.body.foo.toString()` may fail in multiple
+ways, for example the `foo` property may not be there or may not be a string,
+and `toString` may not be a function and instead a string or other user input.
+
+[Learn about the anatomy of an HTTP transaction in Node.js](https://nodejs.org/en/learn/http/anatomy-of-an-http-transaction).
+
+*This does not handle multipart bodies*, due to their complex and typically
+large nature. For multipart bodies, you may be interested in the following
+modules:
+
+- [busboy](https://www.npmjs.com/package/busboy#readme) and
+  [connect-busboy](https://www.npmjs.com/package/connect-busboy#readme)
+- [multiparty](https://www.npmjs.com/package/multiparty#readme) and
+  [connect-multiparty](https://www.npmjs.com/package/connect-multiparty#readme)
+- [formidable](https://www.npmjs.com/package/formidable#readme)
+- [multer](https://www.npmjs.com/package/multer#readme)
+
+This module provides the following parsers:
+
+- [JSON body parser](#bodyparserjsonoptions)
+- [Raw body parser](#bodyparserrawoptions)
+- [Text body parser](#bodyparsertextoptions)
+- [URL-encoded form body parser](#bodyparserurlencodedoptions)
+
+Other body parsers you might be interested in:
+
+- [body](https://www.npmjs.com/package/body#readme)
+- [co-body](https://www.npmjs.com/package/co-body#readme)
+
+## Installation
+
+```
+$ npm install body-parser
+```
+
+## API
+
+```
+// Import all parsers
+const bodyParser = require('body-parser')
+
+// Or import individual parsers directly
+const json = require('body-parser/json')
+const urlencoded = require('body-parser/urlencoded')
+const raw = require('body-parser/raw')
+const text = require('body-parser/text')
+```
+
+The `bodyParser` object exposes various factories to create middlewares. All
+middlewares will populate the `req.body` property with the parsed body when
+the `Content-Type` request header matches the `type` option.
+
+The various errors returned by this module are described in the
+[errors section](#errors).
+
+### bodyParser.json([options])
+
+Returns middleware that only parses `json` and only looks at requests where
+the `Content-Type` header matches the `type` option. This parser accepts any
+Unicode encoding of the body and supports automatic inflation of `gzip`,
+`br` (brotli) and `deflate` encodings.
+
+A new `body` object containing the parsed data is populated on the `request`
+object after the middleware (i.e. `req.body`).
+
+#### Options
+
+The `json` function takes an optional `options` object that may contain any of
+the following keys:
+
+##### defaultCharset
+
+Specify the default character set for the json content if the charset is not
+specified in the `Content-Type` header of the request. Defaults to `utf-8`.
+
+##### inflate
+
+When set to `true`, then deflated (compressed) bodies will be inflated; when
+`false`, deflated bodies are rejected. Defaults to `true`.
+
+##### limit
+
+Controls the maximum request body size. If this is a number, then the value
+specifies the number of bytes; if it is a string, the value is passed to the
+[bytes](https://www.npmjs.com/package/bytes) library for parsing. Defaults
+to `'100kb'`.
+
+##### reviver
+
+The `reviver` option is passed directly to `JSON.parse` as the second
+argument. You can find more information on this argument
+[in the MDN documentation about JSON.parse](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/JSON/parse#Example.3A_Using_the_reviver_parameter).
+
+##### strict
+
+When set to `true`, will only accept arrays and objects; when `false` will
+accept anything `JSON.parse` accepts. Defaults to `true`.
+
+##### type
+
+The `type` option is used to determine what media type the middleware will
+parse. This option can be a string, array of strings, or a function. If not a
+function, `type` option is passed directly to the
+[type-is](https://www.npmjs.com/package/type-is#readme) library and this can
+be an extension name (like `json`), a mime type (like `application/json`), or
+a mime type with a wildcard (like `*/*` or `*/json`). If a function, the `type`
+option is called as `fn(req)` and the request is parsed if it returns a truthy
+value. Defaults to `application/json`.
+
+##### verify
+
+The `verify` option, if supplied, is called as `verify(req, res, buf, encoding)`,
+where `buf` is a `Buffer` of the raw request body and `encoding` is the
+encoding of the request. The parsing can be aborted by throwing an error.
+
+### bodyParser.raw([options])
+
+Returns middleware that parses all bodies as a `Buffer` and only looks at
+requests where the `Content-Type` header matches the `type` option. This
+parser supports automatic inflation of `gzip`, `br` (brotli) and `deflate`
+encodings.
+
+A new `body` object containing the parsed data is populated on the `request`
+object after the middleware (i.e. `req.body`). This will be a `Buffer` object
+of the body.
+
+#### Options
+
+The `raw` function takes an optional `options` object that may contain any of
+the following keys:
+
+##### inflate
+
+When set to `true`, then deflated (compressed) bodies will be inflated; when
+`false`, deflated bodies are rejected. Defaults to `true`.
+
+##### limit
+
+Controls the maximum request body size. If this is a number, then the value
+specifies the number of bytes; if it is a string, the value is passed to the
+[bytes](https://www.npmjs.com/package/bytes) library for parsing. Defaults
+to `'100kb'`.
+
+##### type
+
+The `type` option is used to determine what media type the middleware will
+parse. This option can be a string, array of strings, or a function.
+If not a function, `type` option is passed directly to the
+[type-is](https://www.npmjs.com/package/type-is#readme) library and this
+can be an extension name (like `bin`), a mime type (like
+`application/octet-stream`), or a mime type with a wildcard (like `*/*` or
+`application/*`). If a function, the `type` option is called as `fn(req)`
+and the request is parsed if it returns a truthy value. Defaults to
+`application/octet-stream`.
+
+##### verify
+
+The `verify` option, if supplied, is called as `verify(req, res, buf, encoding)`,
+where `buf` is a `Buffer` of the raw request body and `encoding` is the
+encoding of the request. The parsing can be aborted by throwing an error.
+
+### bodyParser.text([options])
+
+Returns middleware that parses all bodies as a string and only looks at
+requests where the `Content-Type` header matches the `type` option. This
+parser supports automatic inflation of `gzip`, `br` (brotli) and `deflate`
+encodings.
+
+A new `body` string containing the parsed data is populated on the `request`
+object after the middleware (i.e. `req.body`). This will be a string of the
+body.
+
+#### Options
+
+The `text` function takes an optional `options` object that may contain any of
+the following keys:
+
+##### defaultCharset
+
+Specify the default character set for the text content if the charset is not
+specified in the `Content-Type` header of the request. Defaults to `utf-8`.
+
+##### inflate
+
+When set to `true`, then deflated (compressed) bodies will be inflated; when
+`false`, deflated bodies are rejected. Defaults to `true`.
+
+##### limit
+
+Controls the maximum request body size. If this is a number, then the value
+specifies the number of bytes; if it is a string, the value is passed to the
+[bytes](https://www.npmjs.com/package/bytes) library for parsing. Defaults
+to `'100kb'`.
+
+##### type
+
+The `type` option is used to determine what media type the middleware will
+parse. This option can be a string, array of strings, or a function. If not
+a function, `type` option is passed directly to the
+[type-is](https://www.npmjs.com/package/type-is#readme) library and this can
+be an extension name (like `txt`), a mime type (like `text/plain`), or a mime
+type with a wildcard (like `*/*` or `text/*`). If a function, the `type`
+option is called as `fn(req)` and the request is parsed if it returns a
+truthy value. Defaults to `text/plain`.
+
+##### verify
+
+The `verify` option, if supplied, is called as `verify(req, res, buf, encoding)`,
+where `buf` is a `Buffer` of the raw request body and `encoding` is the
+encoding of the request. The parsing can be aborted by throwing an error.
+
+### bodyParser.urlencoded([options])
+
+Returns middleware that only parses `urlencoded` bodies and only looks at
+requests where the `Content-Type` header matches the `type` option. This
+parser accepts only UTF-8 and ISO-8859-1 encodings of the body and supports
+automatic inflation of `gzip`, `br` (brotli) and `deflate` encodings.
+
+A new `body` object containing the parsed data is populated on the `request`
+object after the middleware (i.e. `req.body`). This object will contain
+key-value pairs, where the value can be a string or array (when `extended` is
+`false`), or any type (when `extended` is `true`).
+
+#### Options
+
+The `urlencoded` function takes an optional `options` object that may contain
+any of the following keys:
+
+##### extended
+
+The “extended” syntax allows for rich objects and arrays to be encoded into the
+URL-encoded format, allowing for a JSON-like experience with URL-encoded. For
+more information, please [see the qs
+library](https://www.npmjs.com/package/qs#readme).
+
+Defaults to `false`.
+
+##### inflate
+
+When set to `true`, then deflated (compressed) bodies will be inflated; when
+`false`, deflated bodies are rejected. Defaults to `true`.
+
+##### limit
+
+Controls the maximum request body size. If this is a number, then the value
+specifies the number of bytes; if it is a string, the value is passed to the
+[bytes](https://www.npmjs.com/package/bytes) library for parsing. Defaults
+to `'100kb'`.
+
+##### parameterLimit
+
+The `parameterLimit` option controls the maximum number of parameters that
+are allowed in the URL-encoded data. If a request contains more parameters
+than this value, a 413 will be returned to the client. Defaults to `1000`.
+
+##### type
+
+The `type` option is used to determine what media type the middleware will
+parse. This option can be a string, array of strings, or a function. If not
+a function, `type` option is passed directly to the
+[type-is](https://www.npmjs.com/package/type-is#readme) library and this can
+be an extension name (like `urlencoded`), a mime type (like
+`application/x-www-form-urlencoded`), or a mime type with a wildcard (like
+`*/x-www-form-urlencoded`). If a function, the `type` option is called as
+`fn(req)` and the request is parsed if it returns a truthy value. Defaults
+to `application/x-www-form-urlencoded`.
+
+##### verify
+
+The `verify` option, if supplied, is called as `verify(req, res, buf, encoding)`,
+where `buf` is a `Buffer` of the raw request body and `encoding` is the
+encoding of the request. The parsing can be aborted by throwing an error.
+
+##### defaultCharset
+
+The default charset to parse as, if not specified in content-type. Must be
+either `utf-8` or `iso-8859-1`. Defaults to `utf-8`.
+
+##### charsetSentinel
+
+Whether to let the value of the `utf8` parameter take precedence as the charset
+selector. It requires the form to contain a parameter named `utf8` with a value
+of `✓`. Defaults to `false`.
+
+##### interpretNumericEntities
+
+Whether to decode numeric entities such as `&#9786;` when parsing an iso-8859-1
+form. Defaults to `false`.
+
+##### depth
+
+The `depth` option is used to configure the maximum depth of the `qs` library when `extended` is `true`. This allows you to limit the amount of keys that are parsed and can be useful to prevent certain types of abuse. Defaults to `32`. It is recommended to keep this value as low as possible.
+
+## Errors
+
+The middlewares provided by this module create errors using the
+[http-errorsmodule](https://www.npmjs.com/package/http-errors). The errors
+will typically have a `status`/`statusCode` property that contains the suggested
+HTTP response code, an `expose` property to determine if the `message` property
+should be displayed to the client, a `type` property to determine the type of
+error without matching against the `message`, and a `body` property containing
+the read body, if available.
+
+The following are the common errors created, though any error can come through
+for various reasons.
+
+### content encoding unsupported
+
+This error will occur when the request had a `Content-Encoding` header that
+contained an encoding but the “inflation” option was set to `false`. The
+`status` property is set to `415`, the `type` property is set to
+`'encoding.unsupported'`, and the `charset` property will be set to the
+encoding that is unsupported.
+
+### entity parse failed
+
+This error will occur when the request contained an entity that could not be
+parsed by the middleware. The `status` property is set to `400`, the `type`
+property is set to `'entity.parse.failed'`, and the `body` property is set to
+the entity value that failed parsing.
+
+### entity verify failed
+
+This error will occur when the request contained an entity that could not be
+failed verification by the defined `verify` option. The `status` property is
+set to `403`, the `type` property is set to `'entity.verify.failed'`, and the
+`body` property is set to the entity value that failed verification.
+
+### request aborted
+
+This error will occur when the request is aborted by the client before reading
+the body has finished. The `received` property will be set to the number of
+bytes received before the request was aborted and the `expected` property is
+set to the number of expected bytes. The `status` property is set to `400`
+and `type` property is set to `'request.aborted'`.
+
+### request entity too large
+
+This error will occur when the request body’s size is larger than the “limit”
+option. The `limit` property will be set to the byte limit and the `length`
+property will be set to the request body’s length. The `status` property is
+set to `413` and the `type` property is set to `'entity.too.large'`.
+
+### request size did not match content length
+
+This error will occur when the request’s length did not match the length from
+the `Content-Length` header. This typically occurs when the request is malformed,
+typically when the `Content-Length` header was calculated based on characters
+instead of bytes. The `status` property is set to `400` and the `type` property
+is set to `'request.size.invalid'`.
+
+### stream encoding should not be set
+
+This error will occur when something called the `req.setEncoding` method prior
+to this middleware. This module operates directly on bytes only and you cannot
+call `req.setEncoding` when using this module. The `status` property is set to
+`500` and the `type` property is set to `'stream.encoding.set'`.
+
+### stream is not readable
+
+This error will occur when the request is no longer readable when this middleware
+attempts to read it. This typically means something other than a middleware from
+this module read the request body already and the middleware was also configured to
+read the same request. The `status` property is set to `500` and the `type`
+property is set to `'stream.not.readable'`.
+
+### too many parameters
+
+This error will occur when the content of the request exceeds the configured
+`parameterLimit` for the `urlencoded` parser. The `status` property is set to
+`413` and the `type` property is set to `'parameters.too.many'`.
+
+### unsupported charset “BOGUS”
+
+This error will occur when the request had a charset parameter in the
+`Content-Type` header, but the `iconv-lite` module does not support it OR the
+parser does not support it. The charset is contained in the message as well
+as in the `charset` property. The `status` property is set to `415`, the
+`type` property is set to `'charset.unsupported'`, and the `charset` property
+is set to the charset that is unsupported.
+
+### unsupported content encoding “bogus”
+
+This error will occur when the request had a `Content-Encoding` header that
+contained an unsupported encoding. The encoding is contained in the message
+as well as in the `encoding` property. The `status` property is set to `415`,
+the `type` property is set to `'encoding.unsupported'`, and the `encoding`
+property is set to the encoding that is unsupported.
+
+### The input exceeded the depth
+
+This error occurs when using `bodyParser.urlencoded` with the `extended` property set to `true` and the input exceeds the configured `depth` option. The `status` property is set to `400`. It is recommended to review the `depth` option and evaluate if it requires a higher value. When the `depth` option is set to `32` (default value), the error will not be thrown.
+
+## Examples
+
+### Express/Connect top-level generic
+
+This example demonstrates adding a generic JSON and URL-encoded parser as a
+top-level middleware, which will parse the bodies of all incoming requests.
+This is the simplest setup.
+
+```
+const express = require('express')
+const bodyParser = require('body-parser')
+
+const app = express()
+
+// parse application/x-www-form-urlencoded
+app.use(bodyParser.urlencoded())
+
+// parse application/json
+app.use(bodyParser.json())
+
+app.use(function (req, res) {
+  res.setHeader('Content-Type', 'text/plain')
+  res.write('you posted:\n')
+  res.end(String(JSON.stringify(req.body, null, 2)))
+})
+```
+
+### Express route-specific
+
+This example demonstrates adding body parsers specifically to the routes that
+need them. In general, this is the most recommended way to use body-parser with
+Express.
+
+```
+const express = require('express')
+const bodyParser = require('body-parser')
+
+const app = express()
+
+// create application/json parser
+const jsonParser = bodyParser.json()
+
+// create application/x-www-form-urlencoded parser
+const urlencodedParser = bodyParser.urlencoded()
+
+// POST /login gets urlencoded bodies
+app.post('/login', urlencodedParser, function (req, res) {
+  if (!req.body || !req.body.username) res.sendStatus(400)
+  res.send('welcome, ' + req.body.username)
+})
+
+// POST /api/users gets JSON bodies
+app.post('/api/users', jsonParser, function (req, res) {
+  if (!req.body) res.sendStatus(400)
+  // create user in req.body
+})
+```
+
+### Change accepted type for parsers
+
+All the parsers accept a `type` option which allows you to change the
+`Content-Type` that the middleware will parse.
+
+```
+const express = require('express')
+const bodyParser = require('body-parser')
+
+const app = express()
+
+// parse various different custom JSON types as JSON
+app.use(bodyParser.json({ type: 'application/*+json' }))
+
+// parse some custom thing into a Buffer
+app.use(bodyParser.raw({ type: 'application/vnd.custom-type' }))
+
+// parse an HTML body into a string
+app.use(bodyParser.text({ type: 'text/html' }))
+```
+
+## License
+
+[MIT](https://expressjs.com/zh-cn/resources/middleware/LICENSE)
+
+---
+
+# compression
+
+Note
+
+        This page was generated from the [compression README](https://github.com/expressjs/compression).
+
+# compression
+
+Node.js compression middleware.
+
+The following compression codings are supported:
+
+- deflate
+- gzip
+- br (brotli)
+
+**Note** Brotli is supported only since Node.js versions v11.7.0 and v10.16.0.
+
+## Install
+
+This is a [Node.js](https://nodejs.org/en/) module available through the
+[npm registry](https://www.npmjs.com/). Installation is done using the
+[npm installcommand](https://docs.npmjs.com/getting-started/installing-npm-packages-locally):
+
+```
+$ npm install compression
+```
+
+## API
+
+```
+var compression = require('compression')
+```
+
+### compression([options])
+
+Returns the compression middleware using the given `options`. The middleware
+will attempt to compress response bodies for all requests that traverse through
+the middleware, based on the given `options`.
+
+This middleware will never compress responses that include a `Cache-Control`
+header with the [no-transformdirective](https://tools.ietf.org/html/rfc7234#section-5.2.2.4),
+as compressing will transform the body.
+
+#### Options
+
+`compression()` accepts these properties in the options object. In addition to
+those listed below, [zlib](https://nodejs.org/api/zlib.html) options may be
+passed in to the options object or
+[brotli](https://nodejs.org/api/zlib.html#zlib_class_brotlioptions) options.
+
+##### chunkSize
+
+Type: `Number`
+
+Default: `zlib.constants.Z_DEFAULT_CHUNK`, or `16384`.
+
+See [Node.js documentation](https://nodejs.org/api/zlib.html#zlib_memory_usage_tuning)
+regarding the usage.
+
+##### filter
+
+Type: `Function`
+
+A function to decide if the response should be considered for compression.
+This function is called as `filter(req, res)` and is expected to return
+`true` to consider the response for compression, or `false` to not compress
+the response.
+
+The default filter function uses the [compressible](https://www.npmjs.com/package/compressible)
+module to determine if `res.getHeader('Content-Type')` is compressible.
+
+##### level
+
+Type: `Number`
+
+Default: `zlib.constants.Z_DEFAULT_COMPRESSION`, or `-1`
+
+The level of zlib compression to apply to responses. A higher level will result
+in better compression, but will take longer to complete. A lower level will
+result in less compression, but will be much faster.
+
+This is an integer in the range of `0` (no compression) to `9` (maximum
+compression). The special value `-1` can be used to mean the “default
+compression level”, which is a default compromise between speed and
+compression (currently equivalent to level 6).
+
+- `-1` Default compression level (also `zlib.constants.Z_DEFAULT_COMPRESSION`).
+- `0` No compression (also `zlib.constants.Z_NO_COMPRESSION`).
+- `1` Fastest compression (also `zlib.constants.Z_BEST_SPEED`).
+- `2`
+- `3`
+- `4`
+- `5`
+- `6` (currently what `zlib.constants.Z_DEFAULT_COMPRESSION` points to).
+- `7`
+- `8`
+- `9` Best compression (also `zlib.constants.Z_BEST_COMPRESSION`).
+
+**Note** in the list above, `zlib` is from `zlib = require('zlib')`.
+
+##### memLevel
+
+Type: `Number`
+
+Default: `zlib.constants.Z_DEFAULT_MEMLEVEL`, or `8`
+
+This specifies how much memory should be allocated for the internal compression
+state and is an integer in the range of `1` (minimum level) and `9` (maximum
+level).
+
+See [Node.js documentation](https://nodejs.org/api/zlib.html#zlib_memory_usage_tuning)
+regarding the usage.
+
+##### brotli
+
+Type: `Object`
+
+This specifies the options for configuring Brotli. See [Node.js documentation](https://nodejs.org/api/zlib.html#class-brotlioptions) for a complete list of available options.
+
+##### strategy
+
+Type: `Number`
+
+Default: `zlib.constants.Z_DEFAULT_STRATEGY`
+
+This is used to tune the compression algorithm. This value only affects the
+compression ratio, not the correctness of the compressed output, even if it
+is not set appropriately.
+
+- `zlib.constants.Z_DEFAULT_STRATEGY` Use for normal data.
+- `zlib.constants.Z_FILTERED` Use for data produced by a filter (or predictor).
+  Filtered data consists mostly of small values with a somewhat random
+  distribution. In this case, the compression algorithm is tuned to
+  compress them better. The effect is to force more Huffman coding and less
+  string matching; it is somewhat intermediate between `zlib.constants.Z_DEFAULT_STRATEGY`
+  and `zlib.constants.Z_HUFFMAN_ONLY`.
+- `zlib.constants.Z_FIXED` Use to prevent the use of dynamic Huffman codes, allowing
+  for a simpler decoder for special applications.
+- `zlib.constants.Z_HUFFMAN_ONLY` Use to force Huffman encoding only (no string match).
+- `zlib.constants.Z_RLE` Use to limit match distances to one (run-length encoding).
+  This is designed to be almost as fast as `zlib.constants.Z_HUFFMAN_ONLY`, but give
+  better compression for PNG image data.
+
+**Note** in the list above, `zlib` is from `zlib = require('zlib')`.
+
+##### threshold
+
+Type: `Number` or `String`
+
+Default: `1kb`
+
+The byte threshold for the response body size before compression is considered
+for the response. This is a number of bytes or any string
+accepted by the [bytes](https://www.npmjs.com/package/bytes) module.
+
+**Note** this is only an advisory setting; if the response size cannot be determined
+at the time the response headers are written, then it is assumed the response is
+*over* the threshold. To guarantee the response size can be determined, be sure
+set a `Content-Length` response header.
+
+##### windowBits
+
+Type: `Number`
+
+Default: `zlib.constants.Z_DEFAULT_WINDOWBITS`, or `15`
+
+See [Node.js documentation](https://nodejs.org/api/zlib.html#zlib_memory_usage_tuning)
+regarding the usage.
+
+##### enforceEncoding
+
+Type: `String`
+
+Default: `identity`
+
+This is the default encoding to use when the client does not specify an encoding in the request’s [Accept-Encoding](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Accept-Encoding) header.
+
+#### .filter
+
+The default `filter` function. This is used to construct a custom filter
+function that is an extension of the default function.
+
+```
+var compression = require('compression')
+var express = require('express')
+
+var app = express()
+
+app.use(compression({ filter: shouldCompress }))
+
+function shouldCompress (req, res) {
+  if (req.headers['x-no-compression']) {
+    // don't compress responses with this request header
+    return false
+  }
+
+  // fallback to standard filter function
+  return compression.filter(req, res)
+}
+```
+
+### res.flush
+
+This module adds a `res.flush()` method to force the partially-compressed
+response to be flushed to the client.
+
+## Examples
+
+### express
+
+When using this module with express, simply `app.use` the module as
+high as you like. Requests that pass through the middleware will be compressed.
+
+```
+var compression = require('compression')
+var express = require('express')
+
+var app = express()
+
+// compress all responses
+app.use(compression())
+
+// add all routes
+```
+
+### Node.js HTTP server
+
+```
+var compression = require('compression')({ threshold: 0 })
+var http = require('http')
+
+function createServer (fn) {
+  return http.createServer(function (req, res) {
+    compression(req, res, function (err) {
+      if (err) {
+        res.statusCode = err.status || 500
+        res.end(err.message)
+        return
+      }
+
+      fn(req, res)
+    })
+  })
+}
+
+var server = createServer(function (req, res) {
+  res.setHeader('Content-Type', 'text/plain')
+  res.end('hello world!')
+})
+
+server.listen(3000, () => {
+  console.log('> Listening at http://localhost:3000')
+})
+```
+
+### Server-Sent Events
+
+Because of the nature of compression this module does not work out of the box
+with server-sent events. To compress content, a window of the output needs to
+be buffered up in order to get good compression. Typically when using server-sent
+events, there are certain block of data that need to reach the client.
+
+You can achieve this by calling `res.flush()` when you need the data written to
+actually make it to the client.
+
+```
+var compression = require('compression')
+var express = require('express')
+
+var app = express()
+
+// compress responses
+app.use(compression())
+
+// server-sent event stream
+app.get('/events', function (req, res) {
+  res.setHeader('Content-Type', 'text/event-stream')
+  res.setHeader('Cache-Control', 'no-cache')
+
+  // send a ping approx every 2 seconds
+  var timer = setInterval(function () {
+    res.write('data: ping\n\n')
+
+    // !!! this is the important part
+    res.flush()
+  }, 2000)
+
+  res.on('close', function () {
+    clearInterval(timer)
+  })
+})
+```
+
+## Contributing
+
+The Express.js project welcomes all constructive contributions. Contributions take many forms,
+from code for bug fixes and enhancements, to additions and fixes to documentation, additional
+tests, triaging incoming pull requests and issues, and more!
+
+See the [Contributing Guide](https://github.com/expressjs/express/blob/master/Contributing.md) for more technical details on contributing.
+
+## License
+
+[MIT](https://expressjs.com/zh-cn/resources/middleware/LICENSE)
+
+---
+
+# connect
+
+Note
+
+        This page was generated from the [connect-rid README](https://github.com/expressjs/connect-rid).
+
+> [!CAUTION]
+> **This repository is archived and no longer actively maintained.**
+>
+>
+>
+> We are no longer accepting issues, feature requests, or pull requests.
+> For additional support or questions, please visit the [Express.js Discussions page](https://github.com/expressjs/express/discussions).
+
+# connect-rid
+
+![logo](https://raw.github.com/fengmk2/connect-rid/master/logo.png)
+
+connect request id middleware, base on [rid](https://github.com/fengmk2/rid).
+
+## Install
+
+```
+$ npm install connect-rid
+```
+
+## Usage
+
+```
+var rid = require('connect-rid');
+
+app.use(rid({
+  // headerName: 'X-RID'
+}));
+```
+
+## License
+
+(The MIT License)
+
+Copyright (c) 2014 fengmk2 <[[email protected]](https://expressjs.com/cdn-cgi/l/email-protection)> and other contributors
+
+Permission is hereby granted, free of charge, to any person obtaining
+a copy of this software and associated documentation files (the
+‘Software’), to deal in the Software without restriction, including
+without limitation the rights to use, copy, modify, merge, publish,
+distribute, sublicense, and/or sell copies of the Software, and to
+permit persons to whom the Software is furnished to do so, subject to
+the following conditions:
+
+The above copyright notice and this permission notice shall be
+included in all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED ‘AS IS’, WITHOUT WARRANTY OF ANY KIND,
+EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
+IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
+CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,
+TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
+SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+---
+
+# cookie
+
+Note
+
+        This page was generated from the [cookie-parser README](https://github.com/expressjs/cookie-parser).
+
+# cookie-parser
+
+Parse `Cookie` header and populate `req.cookies` with an object keyed by the
+cookie names. Optionally you may enable signed cookie support by passing a
+`secret` string, which assigns `req.secret` so it may be used by other
+middleware.
+
+## Installation
+
+```
+$ npm install cookie-parser
+```
+
+## API
+
+```
+var cookieParser = require('cookie-parser')
+```
+
+### cookieParser(secret, options)
+
+Create a new cookie parser middleware function using the given `secret` and
+`options`.
+
+- `secret` a string or array used for signing cookies. This is optional and if
+  not specified, will not parse signed cookies. If a string is provided, this
+  is used as the secret. If an array is provided, an attempt will be made to
+  unsign the cookie with each secret in order.
+- `options` an object that is passed to `cookie.parse` as the second option. See
+  [cookie](https://www.npmjs.org/package/cookie) for more information.
+  - `decode` a function to decode the value of the cookie
+
+The middleware will parse the `Cookie` header on the request and expose the
+cookie data as the property `req.cookies` and, if a `secret` was provided, as
+the property `req.signedCookies`. These properties are name value pairs of the
+cookie name to cookie value.
+
+When `secret` is provided, this module will unsign and validate any signed cookie
+values and move those name value pairs from `req.cookies` into `req.signedCookies`.
+A signed cookie is a cookie that has a value prefixed with `s:`. Signed cookies
+that fail signature validation will have the value `false` instead of the tampered
+value.
+
+In addition, this module supports special “JSON cookies”. These are cookie where
+the value is prefixed with `j:`. When these values are encountered, the value will
+be exposed as the result of `JSON.parse`. If parsing fails, the original value will
+remain.
+
+### cookieParser.JSONCookie(str)
+
+Parse a cookie value as a JSON cookie. This will return the parsed JSON value
+if it was a JSON cookie, otherwise, it will return the passed value.
+
+### cookieParser.JSONCookies(cookies)
+
+Given an object, this will iterate over the keys and call `JSONCookie` on each
+value, replacing the original value with the parsed value. This returns the
+same object that was passed in.
+
+### cookieParser.signedCookie(str, secret)
+
+Parse a cookie value as a signed cookie. This will return the parsed unsigned
+value if it was a signed cookie and the signature was valid. If the value was
+not signed, the original value is returned. If the value was signed but the
+signature could not be validated, `false` is returned.
+
+The `secret` argument can be an array or string. If a string is provided, this
+is used as the secret. If an array is provided, an attempt will be made to
+unsign the cookie with each secret in order.
+
+### cookieParser.signedCookies(cookies, secret)
+
+Given an object, this will iterate over the keys and check if any value is a
+signed cookie. If it is a signed cookie and the signature is valid, the key
+will be deleted from the object and added to the new object that is returned.
+
+The `secret` argument can be an array or string. If a string is provided, this
+is used as the secret. If an array is provided, an attempt will be made to
+unsign the cookie with each secret in order.
+
+## Example
+
+```
+var express = require('express')
+var cookieParser = require('cookie-parser')
+
+var app = express()
+app.use(cookieParser())
+
+app.get('/', function (req, res) {
+  // Cookies that have not been signed
+  console.log('Cookies: ', req.cookies)
+
+  // Cookies that have been signed
+  console.log('Signed Cookies: ', req.signedCookies)
+})
+
+app.listen(8080)
+
+// curl command that sends an HTTP request with two cookies
+// curl http://127.0.0.1:8080 --cookie "Cho=Kim;Greet=Hello"
+```
+
+## License
+
+[MIT](https://expressjs.com/zh-cn/resources/middleware/LICENSE)

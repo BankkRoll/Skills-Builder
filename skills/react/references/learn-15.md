@@ -1,0 +1,1223 @@
+# Scaling Up with Reducer and Context and more
+
+# Scaling Up with Reducer and Context
+
+[Learn React](https://react.dev/learn)[Managing State](https://react.dev/learn/managing-state)
+
+# Scaling Up with Reducer and Context
+
+Reducers let you consolidate a component’s state update logic. Context lets you pass information deep down to other components. You can combine reducers and context together to manage state of a complex screen.
+
+### You will learn
+
+- How to combine a reducer with context
+- How to avoid passing state and dispatch through props
+- How to keep context and state logic in a separate file
+
+## Combining a reducer with context
+
+In this example from [the introduction to reducers](https://react.dev/learn/extracting-state-logic-into-a-reducer), the state is managed by a reducer. The reducer function contains all of the state update logic and is declared at the bottom of this file:
+
+ $[Fork](https://codesandbox.io/api/v1/sandboxes/define?undefined&environment=create-react-app)import { useReducer } from 'react';import AddTask from './AddTask.js';import TaskList from './TaskList.js';
+export default function TaskApp() { const [tasks, dispatch] = useReducer( tasksReducer, initialTasks );
+ function handleAddTask(text) { dispatch({ type: 'added', id: nextId++, text: text, }); }
+ function handleChangeTask(task) { dispatch({ type: 'changed', task: task }); }
+ function handleDeleteTask(taskId) { dispatch({ type: 'deleted', id: taskId }); }
+ return ( <> <h1>Day off in Kyoto</h1> <AddTask/$
+
+A reducer helps keep the event handlers short and concise. However, as your app grows, you might run into another difficulty. **Currently, thetasksstate and thedispatchfunction are only available in the top-levelTaskAppcomponent.** To let other components read the list of tasks or change it, you have to explicitly [pass down](https://react.dev/learn/passing-props-to-a-component) the current state and the event handlers that change it as props.
+
+For example, `TaskApp` passes a list of tasks and the event handlers to `TaskList`:
+
+ $
+
+```
+<TaskList  tasks={tasks}  onChangeTask={handleChangeTask}  onDeleteTask={handleDeleteTask}/>
+```
+
+/$
+
+And `TaskList` passes the event handlers to `Task`:
+
+ $
+
+```
+<Task  task={task}  onChange={onChangeTask}  onDelete={onDeleteTask}/>
+```
+
+/$
+
+In a small example like this, this works well, but if you have tens or hundreds of components in the middle, passing down all state and functions can be quite frustrating!
+
+This is why, as an alternative to passing them through props, you might want to put both the `tasks` state and the `dispatch` function [into context.](https://react.dev/learn/passing-data-deeply-with-context) **This way, any component belowTaskAppin the tree can read the tasks and dispatch actions without the repetitive “prop drilling”.**
+
+Here is how you can combine a reducer with context:
+
+1. **Create** the context.
+2. **Put** state and dispatch into context.
+3. **Use** context anywhere in the tree.
+
+### Step 1: Create the context
+
+The `useReducer` Hook returns the current `tasks` and the `dispatch` function that lets you update them:
+
+ $
+
+```
+const [tasks, dispatch] = useReducer(tasksReducer, initialTasks);
+```
+
+/$
+
+To pass them down the tree, you will [create](https://react.dev/learn/passing-data-deeply-with-context#step-2-use-the-context) two separate contexts:
+
+- `TasksContext` provides the current list of tasks.
+- `TasksDispatchContext` provides the function that lets components dispatch actions.
+
+Export them from a separate file so that you can later import them from other files:
+
+ $[Fork](https://codesandbox.io/api/v1/sandboxes/define?undefined&environment=create-react-app)
+
+```
+import { createContext } from 'react';
+
+export const TasksContext = createContext(null);
+export const TasksDispatchContext = createContext(null);
+```
+
+/$
+
+Here, you’re passing `null` as the default value to both contexts. The actual values will be provided by the `TaskApp` component.
+
+### Step 2: Put state and dispatch into context
+
+Now you can import both contexts in your `TaskApp` component. Take the `tasks` and `dispatch` returned by `useReducer()` and [provide them](https://react.dev/learn/passing-data-deeply-with-context#step-3-provide-the-context) to the entire tree below:
+
+ $
+
+```
+import { TasksContext, TasksDispatchContext } from './TasksContext.js';export default function TaskApp() {  const [tasks, dispatch] = useReducer(tasksReducer, initialTasks);  // ...  return (    <TasksContext value={tasks}>      <TasksDispatchContext value={dispatch}>        ...      </TasksDispatchContext>    </TasksContext>  );}
+```
+
+/$
+
+For now, you pass the information both via props and in context:
+
+ $[Fork](https://codesandbox.io/api/v1/sandboxes/define?undefined&environment=create-react-app)
+
+```
+import { useReducer } from 'react';
+import AddTask from './AddTask.js';
+import TaskList from './TaskList.js';
+import { TasksContext, TasksDispatchContext } from './TasksContext.js';
+
+export default function TaskApp() {
+  const [tasks, dispatch] = useReducer(
+    tasksReducer,
+    initialTasks
+  );
+
+  function handleAddTask(text) {
+    dispatch({
+      type: 'added',
+      id: nextId++,
+      text: text,
+    });
+  }
+
+  function handleChangeTask(task) {
+    dispatch({
+      type: 'changed',
+      task: task
+    });
+  }
+
+  function handleDeleteTask(taskId) {
+    dispatch({
+      type: 'deleted',
+      id: taskId
+    });
+  }
+
+  return (
+    <TasksContext value={tasks}>
+      <TasksDispatchContext value={dispatch}>
+        <h1>Day off in Kyoto</h1>
+        <AddTask
+          onAddTask={handleAddTask}
+        />
+        <TaskList
+          tasks={tasks}
+          onChangeTask={handleChangeTask}
+          onDeleteTask={handleDeleteTask}
+        />
+      </TasksDispatchContext>
+    </TasksContext>
+  );
+}
+
+function tasksReducer(tasks, action) {
+  switch (action.type) {
+    case 'added': {
+      return [...tasks, {
+        id: action.id,
+        text: action.text,
+        done: false
+      }];
+    }
+    case 'changed': {
+      return tasks.map(t => {
+        if (t.id === action.task.id) {
+          return action.task;
+        } else {
+          return t;
+        }
+      });
+    }
+    case 'deleted': {
+      return tasks.filter(t => t.id !== action.id);
+    }
+    default: {
+      throw Error('Unknown action: ' + action.type);
+    }
+  }
+}
+
+let nextId = 3;
+const initialTasks = [
+  { id: 0, text: 'Philosopher’s Path', done: true },
+  { id: 1, text: 'Visit the temple', done: false },
+  { id: 2, text: 'Drink matcha', done: false }
+];
+```
+
+/$
+
+In the next step, you will remove prop passing.
+
+### Step 3: Use context anywhere in the tree
+
+Now you don’t need to pass the list of tasks or the event handlers down the tree:
+
+ $
+
+```
+<TasksContext value={tasks}>  <TasksDispatchContext value={dispatch}>    <h1>Day off in Kyoto</h1>    <AddTask />    <TaskList />  </TasksDispatchContext></TasksContext>
+```
+
+/$
+
+Instead, any component that needs the task list can read it from the `TasksContext`:
+
+ $
+
+```
+export default function TaskList() {  const tasks = useContext(TasksContext);  // ...
+```
+
+/$
+
+To update the task list, any component can read the `dispatch` function from context and call it:
+
+ $
+
+```
+export default function AddTask() {  const [text, setText] = useState('');  const dispatch = useContext(TasksDispatchContext);  // ...  return (    // ...    <button onClick={() => {      setText('');      dispatch({        type: 'added',        id: nextId++,        text: text,      });    }}>Add</button>    // ...
+```
+
+/$
+
+**TheTaskAppcomponent does not pass any event handlers down, and theTaskListdoes not pass any event handlers to theTaskcomponent either.** Each component reads the context that it needs:
+
+ $[Fork](https://codesandbox.io/api/v1/sandboxes/define?undefined&environment=create-react-app)
+
+```
+import { useState, useContext } from 'react';
+import { TasksContext, TasksDispatchContext } from './TasksContext.js';
+
+export default function TaskList() {
+  const tasks = useContext(TasksContext);
+  return (
+    <ul>
+      {tasks.map(task => (
+        <li key={task.id}>
+          <Task task={task} />
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+function Task({ task }) {
+  const [isEditing, setIsEditing] = useState(false);
+  const dispatch = useContext(TasksDispatchContext);
+  let taskContent;
+  if (isEditing) {
+    taskContent = (
+      <>
+        <input
+          value={task.text}
+          onChange={e => {
+            dispatch({
+              type: 'changed',
+              task: {
+                ...task,
+                text: e.target.value
+              }
+            });
+          }} />
+        <button onClick={() => setIsEditing(false)}>
+          Save
+        </button>
+      </>
+    );
+  } else {
+    taskContent = (
+      <>
+        {task.text}
+        <button onClick={() => setIsEditing(true)}>
+          Edit
+        </button>
+      </>
+    );
+  }
+  return (
+    <label>
+      <input
+        type="checkbox"
+        checked={task.done}
+        onChange={e => {
+          dispatch({
+            type: 'changed',
+            task: {
+              ...task,
+              done: e.target.checked
+            }
+          });
+        }}
+      />
+      {taskContent}
+      <button onClick={() => {
+        dispatch({
+          type: 'deleted',
+          id: task.id
+        });
+      }}>
+        Delete
+      </button>
+    </label>
+  );
+}
+```
+
+/$
+
+**The state still “lives” in the top-levelTaskAppcomponent, managed withuseReducer.** But its `tasks` and `dispatch` are now available to every component below in the tree by importing and using these contexts.
+
+## Moving all wiring into a single file
+
+You don’t have to do this, but you could further declutter the components by moving both reducer and context into a single file. Currently, `TasksContext.js` contains only two context declarations:
+
+ $
+
+```
+import { createContext } from 'react';export const TasksContext = createContext(null);export const TasksDispatchContext = createContext(null);
+```
+
+/$
+
+This file is about to get crowded! You’ll move the reducer into that same file. Then you’ll declare a new `TasksProvider` component in the same file. This component will tie all the pieces together:
+
+1. It will manage the state with a reducer.
+2. It will provide both contexts to components below.
+3. It will [takechildrenas a prop](https://react.dev/learn/passing-props-to-a-component#passing-jsx-as-children) so you can pass JSX to it.
+
+ $
+
+```
+export function TasksProvider({ children }) {  const [tasks, dispatch] = useReducer(tasksReducer, initialTasks);  return (    <TasksContext value={tasks}>      <TasksDispatchContext value={dispatch}>        {children}      </TasksDispatchContext>    </TasksContext>  );}
+```
+
+/$
+
+**This removes all the complexity and wiring from yourTaskAppcomponent:**
+
+ $[Fork](https://codesandbox.io/api/v1/sandboxes/define?undefined&environment=create-react-app)
+
+```
+import AddTask from './AddTask.js';
+import TaskList from './TaskList.js';
+import { TasksProvider } from './TasksContext.js';
+
+export default function TaskApp() {
+  return (
+    <TasksProvider>
+      <h1>Day off in Kyoto</h1>
+      <AddTask />
+      <TaskList />
+    </TasksProvider>
+  );
+}
+```
+
+/$
+
+You can also export functions that *use* the context from `TasksContext.js`:
+
+ $
+
+```
+export function useTasks() {  return useContext(TasksContext);}export function useTasksDispatch() {  return useContext(TasksDispatchContext);}
+```
+
+/$
+
+When a component needs to read context, it can do it through these functions:
+
+ $
+
+```
+const tasks = useTasks();const dispatch = useTasksDispatch();
+```
+
+/$
+
+This doesn’t change the behavior in any way, but it lets you later split these contexts further or add some logic to these functions. **Now all of the context and reducer wiring is inTasksContext.js. This keeps the components clean and uncluttered, focused on what they display rather than where they get the data:**
+
+ $[Fork](https://codesandbox.io/api/v1/sandboxes/define?undefined&environment=create-react-app)
+
+```
+import { useState } from 'react';
+import { useTasks, useTasksDispatch } from './TasksContext.js';
+
+export default function TaskList() {
+  const tasks = useTasks();
+  return (
+    <ul>
+      {tasks.map(task => (
+        <li key={task.id}>
+          <Task task={task} />
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+function Task({ task }) {
+  const [isEditing, setIsEditing] = useState(false);
+  const dispatch = useTasksDispatch();
+  let taskContent;
+  if (isEditing) {
+    taskContent = (
+      <>
+        <input
+          value={task.text}
+          onChange={e => {
+            dispatch({
+              type: 'changed',
+              task: {
+                ...task,
+                text: e.target.value
+              }
+            });
+          }} />
+        <button onClick={() => setIsEditing(false)}>
+          Save
+        </button>
+      </>
+    );
+  } else {
+    taskContent = (
+      <>
+        {task.text}
+        <button onClick={() => setIsEditing(true)}>
+          Edit
+        </button>
+      </>
+    );
+  }
+  return (
+    <label>
+      <input
+        type="checkbox"
+        checked={task.done}
+        onChange={e => {
+          dispatch({
+            type: 'changed',
+            task: {
+              ...task,
+              done: e.target.checked
+            }
+          });
+        }}
+      />
+      {taskContent}
+      <button onClick={() => {
+        dispatch({
+          type: 'deleted',
+          id: task.id
+        });
+      }}>
+        Delete
+      </button>
+    </label>
+  );
+}
+```
+
+/$
+
+You can think of `TasksProvider` as a part of the screen that knows how to deal with tasks, `useTasks` as a way to read them, and `useTasksDispatch` as a way to update them from any component below in the tree.
+
+### Note
+
+Functions like `useTasks` and `useTasksDispatch` are called *Custom Hooks.* Your function is considered a custom Hook if its name starts with `use`. This lets you use other Hooks, like `useContext`, inside it.
+
+As your app grows, you may have many context-reducer pairs like this. This is a powerful way to scale your app and [lift state up](https://react.dev/learn/sharing-state-between-components) without too much work whenever you want to access the data deep in the tree.
+
+## Recap
+
+- You can combine reducer with context to let any component read and update state above it.
+- To provide state and the dispatch function to components below:
+  1. Create two contexts (for state and for dispatch functions).
+  2. Provide both contexts from the component that uses the reducer.
+  3. Use either context from components that need to read them.
+- You can further declutter the components by moving all wiring into one file.
+  - You can export a component like `TasksProvider` that provides context.
+  - You can also export custom Hooks like `useTasks` and `useTasksDispatch` to read it.
+- You can have many context-reducer pairs like this in your app.
+
+[PreviousPassing Data Deeply with Context](https://react.dev/learn/passing-data-deeply-with-context)[NextEscape Hatches](https://react.dev/learn/escape-hatches)
+
+---
+
+# Separating Events from Effects
+
+[Learn React](https://react.dev/learn)[Escape Hatches](https://react.dev/learn/escape-hatches)
+
+# Separating Events from Effects
+
+Event handlers only re-run when you perform the same interaction again. Unlike event handlers, Effects re-synchronize if some value they read, like a prop or a state variable, is different from what it was during the last render. Sometimes, you also want a mix of both behaviors: an Effect that re-runs in response to some values but not others. This page will teach you how to do that.
+
+### You will learn
+
+- How to choose between an event handler and an Effect
+- Why Effects are reactive, and event handlers are not
+- What to do when you want a part of your Effect’s code to not be reactive
+- What Effect Events are, and how to extract them from your Effects
+- How to read the latest props and state from Effects using Effect Events
+
+## Choosing between event handlers and Effects
+
+First, let’s recap the difference between event handlers and Effects.
+
+Imagine you’re implementing a chat room component. Your requirements look like this:
+
+1. Your component should automatically connect to the selected chat room.
+2. When you click the “Send” button, it should send a message to the chat.
+
+Let’s say you’ve already implemented the code for them, but you’re not sure where to put it. Should you use event handlers or Effects? Every time you need to answer this question, consider [whythe code needs to run.](https://react.dev/learn/synchronizing-with-effects#what-are-effects-and-how-are-they-different-from-events)
+
+### Event handlers run in response to specific interactions
+
+From the user’s perspective, sending a message should happen *because* the particular “Send” button was clicked. The user will get rather upset if you send their message at any other time or for any other reason. This is why sending a message should be an event handler. Event handlers let you handle specific interactions:
+
+ $
+
+```
+function ChatRoom({ roomId }) {  const [message, setMessage] = useState('');  // ...  function handleSendClick() {    sendMessage(message);  }  // ...  return (    <>      <input value={message} onChange={e => setMessage(e.target.value)} />      <button onClick={handleSendClick}>Send</button>    </>  );}
+```
+
+/$
+
+With an event handler, you can be sure that `sendMessage(message)` will *only* run if the user presses the button.
+
+### Effects run whenever synchronization is needed
+
+Recall that you also need to keep the component connected to the chat room. Where does that code go?
+
+The *reason* to run this code is not some particular interaction. It doesn’t matter why or how the user navigated to the chat room screen. Now that they’re looking at it and could interact with it, the component needs to stay connected to the selected chat server. Even if the chat room component was the initial screen of your app, and the user has not performed any interactions at all, you would *still* need to connect. This is why it’s an Effect:
+
+ $
+
+```
+function ChatRoom({ roomId }) {  // ...  useEffect(() => {    const connection = createConnection(serverUrl, roomId);    connection.connect();    return () => {      connection.disconnect();    };  }, [roomId]);  // ...}
+```
+
+/$
+
+With this code, you can be sure that there is always an active connection to the currently selected chat server, *regardless* of the specific interactions performed by the user. Whether the user has only opened your app, selected a different room, or navigated to another screen and back, your Effect ensures that the component will *remain synchronized* with the currently selected room, and will [re-connect whenever it’s necessary.](https://react.dev/learn/lifecycle-of-reactive-effects#why-synchronization-may-need-to-happen-more-than-once)
+
+ $[Fork](https://codesandbox.io/api/v1/sandboxes/define?undefined&environment=create-react-app)
+
+```
+import { useState, useEffect } from 'react';
+import { createConnection, sendMessage } from './chat.js';
+
+const serverUrl = 'https://localhost:1234';
+
+function ChatRoom({ roomId }) {
+  const [message, setMessage] = useState('');
+
+  useEffect(() => {
+    const connection = createConnection(serverUrl, roomId);
+    connection.connect();
+    return () => connection.disconnect();
+  }, [roomId]);
+
+  function handleSendClick() {
+    sendMessage(message);
+  }
+
+  return (
+    <>
+      <h1>Welcome to the {roomId} room!</h1>
+      <input value={message} onChange={e => setMessage(e.target.value)} />
+      <button onClick={handleSendClick}>Send</button>
+    </>
+  );
+}
+
+export default function App() {
+  const [roomId, setRoomId] = useState('general');
+  const [show, setShow] = useState(false);
+  return (
+    <>
+      <label>
+        Choose the chat room:{' '}
+        <select
+          value={roomId}
+          onChange={e => setRoomId(e.target.value)}
+        >
+          <option value="general">general</option>
+          <option value="travel">travel</option>
+          <option value="music">music</option>
+        </select>
+      </label>
+      <button onClick={() => setShow(!show)}>
+        {show ? 'Close chat' : 'Open chat'}
+      </button>
+      {show && <hr />}
+      {show && <ChatRoom roomId={roomId} />}
+    </>
+  );
+}
+```
+
+/$
+
+## Reactive values and reactive logic
+
+Intuitively, you could say that event handlers are always triggered “manually”, for example by clicking a button. Effects, on the other hand, are “automatic”: they run and re-run as often as it’s needed to stay synchronized.
+
+There is a more precise way to think about this.
+
+Props, state, and variables declared inside your component’s body are called reactive values. In this example, `serverUrl` is not a reactive value, but `roomId` and `message` are. They participate in the rendering data flow:
+
+ $
+
+```
+const serverUrl = 'https://localhost:1234';function ChatRoom({ roomId }) {  const [message, setMessage] = useState('');  // ...}
+```
+
+/$
+
+Reactive values like these can change due to a re-render. For example, the user may edit the `message` or choose a different `roomId` in a dropdown. Event handlers and Effects respond to changes differently:
+
+- **Logic inside event handlers isnot reactive.** It will not run again unless the user performs the same interaction (e.g. a click) again. Event handlers can read reactive values without “reacting” to their changes.
+- **Logic inside Effects isreactive.** If your Effect reads a reactive value, [you have to specify it as a dependency.](https://react.dev/learn/lifecycle-of-reactive-effects#effects-react-to-reactive-values) Then, if a re-render causes that value to change, React will re-run your Effect’s logic with the new value.
+
+Let’s revisit the previous example to illustrate this difference.
+
+### Logic inside event handlers is not reactive
+
+Take a look at this line of code. Should this logic be reactive or not?
+
+ $
+
+```
+// ...    sendMessage(message);    // ...
+```
+
+/$
+
+From the user’s perspective, **a change to themessagedoesnotmean that they want to send a message.** It only means that the user is typing. In other words, the logic that sends a message should not be reactive. It should not run again only because the reactive value has changed. That’s why it belongs in the event handler:
+
+ $
+
+```
+function handleSendClick() {    sendMessage(message);  }
+```
+
+/$
+
+Event handlers aren’t reactive, so `sendMessage(message)` will only run when the user clicks the Send button.
+
+### Logic inside Effects is reactive
+
+Now let’s return to these lines:
+
+ $
+
+```
+// ...    const connection = createConnection(serverUrl, roomId);    connection.connect();    // ...
+```
+
+/$
+
+From the user’s perspective, **a change to theroomIddoesmean that they want to connect to a different room.** In other words, the logic for connecting to the room should be reactive. You *want* these lines of code to “keep up” with the reactive value, and to run again if that value is different. That’s why it belongs in an Effect:
+
+ $
+
+```
+useEffect(() => {    const connection = createConnection(serverUrl, roomId);    connection.connect();    return () => {      connection.disconnect()    };  }, [roomId]);
+```
+
+/$
+
+Effects are reactive, so `createConnection(serverUrl, roomId)` and `connection.connect()` will run for every distinct value of `roomId`. Your Effect keeps the chat connection synchronized to the currently selected room.
+
+## Extracting non-reactive logic out of Effects
+
+Things get more tricky when you want to mix reactive logic with non-reactive logic.
+
+For example, imagine that you want to show a notification when the user connects to the chat. You read the current theme (dark or light) from the props so that you can show the notification in the correct color:
+
+ $
+
+```
+function ChatRoom({ roomId, theme }) {  useEffect(() => {    const connection = createConnection(serverUrl, roomId);    connection.on('connected', () => {      showNotification('Connected!', theme);    });    connection.connect();    // ...
+```
+
+/$
+
+However, `theme` is a reactive value (it can change as a result of re-rendering), and [every reactive value read by an Effect must be declared as its dependency.](https://react.dev/learn/lifecycle-of-reactive-effects#react-verifies-that-you-specified-every-reactive-value-as-a-dependency) Now you have to specify `theme` as a dependency of your Effect:
+
+ $
+
+```
+function ChatRoom({ roomId, theme }) {  useEffect(() => {    const connection = createConnection(serverUrl, roomId);    connection.on('connected', () => {      showNotification('Connected!', theme);    });    connection.connect();    return () => {      connection.disconnect()    };  }, [roomId, theme]); // ✅ All dependencies declared  // ...
+```
+
+/$
+
+Play with this example and see if you can spot the problem with this user experience:
+
+ $[Fork](https://codesandbox.io/api/v1/sandboxes/define?undefined&environment=create-react-app)
+
+```
+import { useState, useEffect } from 'react';
+import { createConnection, sendMessage } from './chat.js';
+import { showNotification } from './notifications.js';
+
+const serverUrl = 'https://localhost:1234';
+
+function ChatRoom({ roomId, theme }) {
+  useEffect(() => {
+    const connection = createConnection(serverUrl, roomId);
+    connection.on('connected', () => {
+      showNotification('Connected!', theme);
+    });
+    connection.connect();
+    return () => connection.disconnect();
+  }, [roomId, theme]);
+
+  return <h1>Welcome to the {roomId} room!</h1>
+}
+
+export default function App() {
+  const [roomId, setRoomId] = useState('general');
+  const [isDark, setIsDark] = useState(false);
+  return (
+    <>
+      <label>
+        Choose the chat room:{' '}
+        <select
+          value={roomId}
+          onChange={e => setRoomId(e.target.value)}
+        >
+          <option value="general">general</option>
+          <option value="travel">travel</option>
+          <option value="music">music</option>
+        </select>
+      </label>
+      <label>
+        <input
+          type="checkbox"
+          checked={isDark}
+          onChange={e => setIsDark(e.target.checked)}
+        />
+        Use dark theme
+      </label>
+      <hr />
+      <ChatRoom
+        roomId={roomId}
+        theme={isDark ? 'dark' : 'light'}
+      />
+    </>
+  );
+}
+```
+
+/$
+
+When the `roomId` changes, the chat re-connects as you would expect. But since `theme` is also a dependency, the chat *also* re-connects every time you switch between the dark and the light theme. That’s not great!
+
+In other words, you *don’t* want this line to be reactive, even though it is inside an Effect (which is reactive):
+
+ $
+
+```
+// ...      showNotification('Connected!', theme);      // ...
+```
+
+/$
+
+You need a way to separate this non-reactive logic from the reactive Effect around it.
+
+### Declaring an Effect Event
+
+Use a special Hook called [useEffectEvent](https://react.dev/reference/react/useEffectEvent) to extract this non-reactive logic out of your Effect:
+
+ $
+
+```
+import { useEffect, useEffectEvent } from 'react';function ChatRoom({ roomId, theme }) {  const onConnected = useEffectEvent(() => {    showNotification('Connected!', theme);  });  // ...
+```
+
+/$
+
+Here, `onConnected` is called an *Effect Event.* It’s a part of your Effect logic, but it behaves a lot more like an event handler. The logic inside it is not reactive, and it always “sees” the latest values of your props and state.
+
+Now you can call the `onConnected` Effect Event from inside your Effect:
+
+ $
+
+```
+function ChatRoom({ roomId, theme }) {  const onConnected = useEffectEvent(() => {    showNotification('Connected!', theme);  });  useEffect(() => {    const connection = createConnection(serverUrl, roomId);    connection.on('connected', () => {      onConnected();    });    connection.connect();    return () => connection.disconnect();  }, [roomId]); // ✅ All dependencies declared  // ...
+```
+
+/$
+
+This solves the problem. Note that you had to *remove* `theme` from the list of your Effect’s dependencies, because it’s no longer used in the Effect. You also don’t need to *add* `onConnected` to it, because **Effect Events are not reactive and must be omitted from dependencies.**
+
+Verify that the new behavior works as you would expect:
+
+ $[Fork](https://codesandbox.io/api/v1/sandboxes/define?undefined&environment=create-react-app)
+
+```
+import { useState, useEffect } from 'react';
+import { useEffectEvent } from 'react';
+import { createConnection, sendMessage } from './chat.js';
+import { showNotification } from './notifications.js';
+
+const serverUrl = 'https://localhost:1234';
+
+function ChatRoom({ roomId, theme }) {
+  const onConnected = useEffectEvent(() => {
+    showNotification('Connected!', theme);
+  });
+
+  useEffect(() => {
+    const connection = createConnection(serverUrl, roomId);
+    connection.on('connected', () => {
+      onConnected();
+    });
+    connection.connect();
+    return () => connection.disconnect();
+  }, [roomId]);
+
+  return <h1>Welcome to the {roomId} room!</h1>
+}
+
+export default function App() {
+  const [roomId, setRoomId] = useState('general');
+  const [isDark, setIsDark] = useState(false);
+  return (
+    <>
+      <label>
+        Choose the chat room:{' '}
+        <select
+          value={roomId}
+          onChange={e => setRoomId(e.target.value)}
+        >
+          <option value="general">general</option>
+          <option value="travel">travel</option>
+          <option value="music">music</option>
+        </select>
+      </label>
+      <label>
+        <input
+          type="checkbox"
+          checked={isDark}
+          onChange={e => setIsDark(e.target.checked)}
+        />
+        Use dark theme
+      </label>
+      <hr />
+      <ChatRoom
+        roomId={roomId}
+        theme={isDark ? 'dark' : 'light'}
+      />
+    </>
+  );
+}
+```
+
+/$
+
+You can think of Effect Events as being very similar to event handlers. The main difference is that event handlers run in response to a user interactions, whereas Effect Events are triggered by you from Effects. Effect Events let you “break the chain” between the reactivity of Effects and code that should not be reactive.
+
+### Reading latest props and state with Effect Events
+
+Effect Events let you fix many patterns where you might be tempted to suppress the dependency linter.
+
+For example, say you have an Effect to log the page visits:
+
+ $
+
+```
+function Page() {  useEffect(() => {    logVisit();  }, []);  // ...}
+```
+
+/$
+
+Later, you add multiple routes to your site. Now your `Page` component receives a `url` prop with the current path. You want to pass the `url` as a part of your `logVisit` call, but the dependency linter complains:
+
+ $
+
+```
+function Page({ url }) {  useEffect(() => {    logVisit(url);  }, []); // 🔴 React Hook useEffect has a missing dependency: 'url'  // ...}
+```
+
+/$
+
+Think about what you want the code to do. You *want* to log a separate visit for different URLs since each URL represents a different page. In other words, this `logVisit` call *should* be reactive with respect to the `url`. This is why, in this case, it makes sense to follow the dependency linter, and add `url` as a dependency:
+
+ $
+
+```
+function Page({ url }) {  useEffect(() => {    logVisit(url);  }, [url]); // ✅ All dependencies declared  // ...}
+```
+
+/$
+
+Now let’s say you want to include the number of items in the shopping cart together with every page visit:
+
+ $
+
+```
+function Page({ url }) {  const { items } = useContext(ShoppingCartContext);  const numberOfItems = items.length;  useEffect(() => {    logVisit(url, numberOfItems);  }, [url]); // 🔴 React Hook useEffect has a missing dependency: 'numberOfItems'  // ...}
+```
+
+/$
+
+You used `numberOfItems` inside the Effect, so the linter asks you to add it as a dependency. However, you *don’t* want the `logVisit` call to be reactive with respect to `numberOfItems`. If the user puts something into the shopping cart, and the `numberOfItems` changes, this *does not mean* that the user visited the page again. In other words, *visiting the page* is, in some sense, an “event”. It happens at a precise moment in time.
+
+Split the code in two parts:
+
+ $
+
+```
+function Page({ url }) {  const { items } = useContext(ShoppingCartContext);  const numberOfItems = items.length;  const onVisit = useEffectEvent(visitedUrl => {    logVisit(visitedUrl, numberOfItems);  });  useEffect(() => {    onVisit(url);  }, [url]); // ✅ All dependencies declared  // ...}
+```
+
+/$
+
+Here, `onVisit` is an Effect Event. The code inside it isn’t reactive. This is why you can use `numberOfItems` (or any other reactive value!) without worrying that it will cause the surrounding code to re-execute on changes.
+
+On the other hand, the Effect itself remains reactive. Code inside the Effect uses the `url` prop, so the Effect will re-run after every re-render with a different `url`. This, in turn, will call the `onVisit` Effect Event.
+
+As a result, you will call `logVisit` for every change to the `url`, and always read the latest `numberOfItems`. However, if `numberOfItems` changes on its own, this will not cause any of the code to re-run.
+
+### Note
+
+You might be wondering if you could call `onVisit()` with no arguments, and read the `url` inside it:
+
+$
+
+```
+const onVisit = useEffectEvent(() => {    logVisit(url, numberOfItems);  });  useEffect(() => {    onVisit();  }, [url]);
+```
+
+/$
+
+This would work, but it’s better to pass this `url` to the Effect Event explicitly. **By passingurlas an argument to your Effect Event, you are saying that visiting a page with a differenturlconstitutes a separate “event” from the user’s perspective.** The `visitedUrl` is a *part* of the “event” that happened:
+
+$
+
+```
+const onVisit = useEffectEvent(visitedUrl => {    logVisit(visitedUrl, numberOfItems);  });  useEffect(() => {    onVisit(url);  }, [url]);
+```
+
+/$
+
+Since your Effect Event explicitly “asks” for the `visitedUrl`, now you can’t accidentally remove `url` from the Effect’s dependencies. If you remove the `url` dependency (causing distinct page visits to be counted as one), the linter will warn you about it. You want `onVisit` to be reactive with regards to the `url`, so instead of reading the `url` inside (where it wouldn’t be reactive), you pass it *from* your Effect.
+
+This becomes especially important if there is some asynchronous logic inside the Effect:
+
+$
+
+```
+const onVisit = useEffectEvent(visitedUrl => {    logVisit(visitedUrl, numberOfItems);  });  useEffect(() => {    setTimeout(() => {      onVisit(url);    }, 5000); // Delay logging visits  }, [url]);
+```
+
+/$
+
+Here, `url` inside `onVisit` corresponds to the *latest* `url` (which could have already changed), but `visitedUrl` corresponds to the `url` that originally caused this Effect (and this `onVisit` call) to run.
+
+##### Deep Dive
+
+#### Is it okay to suppress the dependency linter instead?
+
+In the existing codebases, you may sometimes see the lint rule suppressed like this:
+
+$
+
+```
+function Page({ url }) {  const { items } = useContext(ShoppingCartContext);  const numberOfItems = items.length;  useEffect(() => {    logVisit(url, numberOfItems);    // 🔴 Avoid suppressing the linter like this:    // eslint-disable-next-line react-hooks/exhaustive-deps  }, [url]);  // ...}
+```
+
+/$
+
+We recommend **never suppressing the linter**.
+
+The first downside of suppressing the rule is that React will no longer warn you when your Effect needs to “react” to a new reactive dependency you’ve introduced to your code. In the earlier example, you added `url` to the dependencies *because* React reminded you to do it. You will no longer get such reminders for any future edits to that Effect if you disable the linter. This leads to bugs.
+
+Here is an example of a confusing bug caused by suppressing the linter. In this example, the `handleMove` function is supposed to read the current `canMove` state variable value in order to decide whether the dot should follow the cursor. However, `canMove` is always `true` inside `handleMove`.
+
+Can you see why?
+
+$[Fork](https://codesandbox.io/api/v1/sandboxes/define?undefined&environment=create-react-app)
+
+```
+import { useState, useEffect } from 'react';
+
+export default function App() {
+  const [position, setPosition] = useState({ x: 0, y: 0 });
+  const [canMove, setCanMove] = useState(true);
+
+  function handleMove(e) {
+    if (canMove) {
+      setPosition({ x: e.clientX, y: e.clientY });
+    }
+  }
+
+  useEffect(() => {
+    window.addEventListener('pointermove', handleMove);
+    return () => window.removeEventListener('pointermove', handleMove);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  return (
+    <>
+      <label>
+        <input type="checkbox"
+          checked={canMove}
+          onChange={e => setCanMove(e.target.checked)}
+        />
+        The dot is allowed to move
+      </label>
+      <hr />
+      <div style={{
+        position: 'absolute',
+        backgroundColor: 'pink',
+        borderRadius: '50%',
+        opacity: 0.6,
+        transform: `translate(${position.x}px, ${position.y}px)`,
+        pointerEvents: 'none',
+        left: -20,
+        top: -20,
+        width: 40,
+        height: 40,
+      }} />
+    </>
+  );
+}
+```
+
+/$
+
+The problem with this code is in suppressing the dependency linter. If you remove the suppression, you’ll see that this Effect should depend on the `handleMove` function. This makes sense: `handleMove` is declared inside the component body, which makes it a reactive value. Every reactive value must be specified as a dependency, or it can potentially get stale over time!
+
+The author of the original code has “lied” to React by saying that the Effect does not depend (`[]`) on any reactive values. This is why React did not re-synchronize the Effect after `canMove` has changed (and `handleMove` with it). Because React did not re-synchronize the Effect, the `handleMove` attached as a listener is the `handleMove` function created during the initial render. During the initial render, `canMove` was `true`, which is why `handleMove` from the initial render will forever see that value.
+
+**If you never suppress the linter, you will never see problems with stale values.**
+
+With `useEffectEvent`, there is no need to “lie” to the linter, and the code works as you would expect:
+
+$[Fork](https://codesandbox.io/api/v1/sandboxes/define?undefined&environment=create-react-app)
+
+```
+import { useState, useEffect } from 'react';
+import { useEffectEvent } from 'react';
+
+export default function App() {
+  const [position, setPosition] = useState({ x: 0, y: 0 });
+  const [canMove, setCanMove] = useState(true);
+
+  const onMove = useEffectEvent(e => {
+    if (canMove) {
+      setPosition({ x: e.clientX, y: e.clientY });
+    }
+  });
+
+  useEffect(() => {
+    window.addEventListener('pointermove', onMove);
+    return () => window.removeEventListener('pointermove', onMove);
+  }, []);
+
+  return (
+    <>
+      <label>
+        <input type="checkbox"
+          checked={canMove}
+          onChange={e => setCanMove(e.target.checked)}
+        />
+        The dot is allowed to move
+      </label>
+      <hr />
+      <div style={{
+        position: 'absolute',
+        backgroundColor: 'pink',
+        borderRadius: '50%',
+        opacity: 0.6,
+        transform: `translate(${position.x}px, ${position.y}px)`,
+        pointerEvents: 'none',
+        left: -20,
+        top: -20,
+        width: 40,
+        height: 40,
+      }} />
+    </>
+  );
+}
+```
+
+/$
+
+This doesn’t mean that `useEffectEvent` is *always* the correct solution. You should only apply it to the lines of code that you don’t want to be reactive. In the above sandbox, you didn’t want the Effect’s code to be reactive with regards to `canMove`. That’s why it made sense to extract an Effect Event.
+
+Read [Removing Effect Dependencies](https://react.dev/learn/removing-effect-dependencies) for other correct alternatives to suppressing the linter.
+
+### Limitations of Effect Events
+
+Effect Events are very limited in how you can use them:
+
+- **Only call them from inside Effects.**
+- **Never pass them to other components or Hooks.**
+
+For example, don’t declare and pass an Effect Event like this:
+
+ $
+
+```
+function Timer() {  const [count, setCount] = useState(0);  const onTick = useEffectEvent(() => {    setCount(count + 1);  });  useTimer(onTick, 1000); // 🔴 Avoid: Passing Effect Events  return <h1>{count}</h1>}function useTimer(callback, delay) {  useEffect(() => {    const id = setInterval(() => {      callback();    }, delay);    return () => {      clearInterval(id);    };  }, [delay, callback]); // Need to specify "callback" in dependencies}
+```
+
+/$
+
+Instead, always declare Effect Events directly next to the Effects that use them:
+
+ $
+
+```
+function Timer() {  const [count, setCount] = useState(0);  useTimer(() => {    setCount(count + 1);  }, 1000);  return <h1>{count}</h1>}function useTimer(callback, delay) {  const onTick = useEffectEvent(() => {    callback();  });  useEffect(() => {    const id = setInterval(() => {      onTick(); // ✅ Good: Only called locally inside an Effect    }, delay);    return () => {      clearInterval(id);    };  }, [delay]); // No need to specify "onTick" (an Effect Event) as a dependency}
+```
+
+/$
+
+Effect Events are non-reactive “pieces” of your Effect code. They should be next to the Effect using them.
+
+## Recap
+
+- Event handlers run in response to specific interactions.
+- Effects run whenever synchronization is needed.
+- Logic inside event handlers is not reactive.
+- Logic inside Effects is reactive.
+- You can move non-reactive logic from Effects into Effect Events.
+- Only call Effect Events from inside Effects.
+- Don’t pass Effect Events to other components or Hooks.
+
+## Try out some challenges
+
+#### Challenge1of4:Fix a variable that doesn’t update
+
+This `Timer` component keeps a `count` state variable which increases every second. The value by which it’s increasing is stored in the `increment` state variable. You can control the `increment` variable with the plus and minus buttons.
+
+However, no matter how many times you click the plus button, the counter is still incremented by one every second. What’s wrong with this code? Why is `increment` always equal to `1` inside the Effect’s code? Find the mistake and fix it.
+
+$[Fork](https://codesandbox.io/api/v1/sandboxes/define?undefined&environment=create-react-app)
+
+```
+import { useState, useEffect } from 'react';
+
+export default function Timer() {
+  const [count, setCount] = useState(0);
+  const [increment, setIncrement] = useState(1);
+
+  useEffect(() => {
+    const id = setInterval(() => {
+      setCount(c => c + increment);
+    }, 1000);
+    return () => {
+      clearInterval(id);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  return (
+    <>
+      <h1>
+        Counter: {count}
+        <button onClick={() => setCount(0)}>Reset</button>
+      </h1>
+      <hr />
+      <p>
+        Every second, increment by:
+        <button disabled={increment === 0} onClick={() => {
+          setIncrement(i => i - 1);
+        }}>–</button>
+        <b>{increment}</b>
+        <button onClick={() => {
+          setIncrement(i => i + 1);
+        }}>+</button>
+      </p>
+    </>
+  );
+}
+```
+
+/$[PreviousLifecycle of Reactive Effects](https://react.dev/learn/lifecycle-of-reactive-effects)[NextRemoving Effect Dependencies](https://react.dev/learn/removing-effect-dependencies)
+
+---
+
+# Setup
+
+[Learn React](https://react.dev/learn)
+
+# Setup
+
+React integrates with tools like editors, TypeScript, browser extensions, and compilers. This section will help you get your environment set up.
+
+## Editor Setup
+
+See our [recommended editors](https://react.dev/learn/editor-setup) and learn how to set them up to work with React.
+
+## Using TypeScript
+
+TypeScript is a popular way to add type definitions to JavaScript codebases. [Learn how to integrate TypeScript into your React projects](https://react.dev/learn/typescript).
+
+## React Developer Tools
+
+React Developer Tools is a browser extension that can inspect React components, edit props and state, and identify performance problems. Learn how to install it [here](https://react.dev/learn/react-developer-tools).
+
+## React Compiler
+
+React Compiler is a tool that automatically optimizes your React app. [Learn more](https://react.dev/learn/react-compiler).
+
+## Next steps
+
+Head to the [Quick Start](https://react.dev/learn) guide for a tour of the most important React concepts you will encounter every day.
+
+[PreviousAdd React to an Existing Project](https://react.dev/learn/add-react-to-an-existing-project)[NextEditor Setup](https://react.dev/learn/editor-setup)

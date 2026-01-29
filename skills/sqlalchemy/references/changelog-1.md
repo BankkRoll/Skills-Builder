@@ -1,0 +1,782 @@
+# SQLAlchemy 2.0 Documentation and more
+
+# SQLAlchemy 2.0 Documentation
+
+# 0.1 Changelog
+
+## 0.1.7
+
+Released: Fri May 05 2006
+
+- some fixes to topological sort algorithm
+- added DISTINCT ON support to Postgres (just supply distinct=[col1,col2..])
+- added __mod__ (% operator) to sql expressions
+- ”order_by” mapper property inherited from inheriting mapper
+- fix to column type used when mapper UPDATES/DELETEs
+- with convert_unicode=True, reflection was failing, has been fixed
+- types types types!  still weren’t working….have to use TypeDecorator again :(
+- mysql binary type converts array output to buffer, fixes PickleType
+- fixed the attributes.py memory leak once and for all
+- unittests are qualified based on the databases that support each one
+- fixed bug where column defaults would clobber VALUES clause of insert objects
+- fixed bug where table def w/ schema name would force engine connection
+- fix for parenthesis to work correctly with subqueries in INSERT/UPDATE
+- HistoryArraySet gets extend() method
+- fixed lazyload support for other comparison operators besides =
+- lazyload fix where two comparisons in the join condition point to the
+  samem column
+- added “construct_new” flag to mapper, will use __new__ to create instances
+  instead of __init__ (standard in 0.2)
+- added selectresults.py to SVN, missed it last time
+- tweak to allow a many-to-many relationship from a table to itself via
+  an association table
+- small fix to “translate_row” function used by polymorphic example
+- create_engine uses cgi.parse_qsl to read query string (out the window in 0.2)
+- tweaks to CAST operator
+- fixed function names LOCAL_TIME/LOCAL_TIMESTAMP -> LOCALTIME/LOCALTIMESTAMP
+- fixed order of ORDER BY/HAVING in compile
+
+## 0.1.6
+
+Released: Wed Apr 12 2006
+
+- support for MS-SQL added courtesy Rick Morrison, Runar Petursson
+- the latest SQLSoup from J. Ellis
+- ActiveMapper has preliminary support for inheritance (Jeff Watkins)
+- added a “mods” system which allows pluggable modules that modify/augment
+  core functionality, using the function “install_mods(*modnames)”.
+- added the first “mod”, SelectResults, which modifies mapper selects to
+  return generators that turn ranges into LIMIT/OFFSET queries
+  (Jonas Borgstr?
+- factored out querying capabilities of Mapper into a separate Query object
+  which is Session-centric.  this improves the performance of mapper.using(session)
+  and makes other things possible.
+- objectstore/Session refactored, the official way to save objects is now
+  via the flush() method.  The begin/commit functionality of Session is factored
+  into LegacySession which is still established as the default behavior, until
+  the 0.2 series.
+- types system is bound to an engine at query compile time, not schema
+  construction time.  this simplifies the types system as well as the ProxyEngine.
+- added ‘version_id’ keyword argument to mapper. this keyword should reference a
+  Column object with type Integer, preferably non-nullable, which will be used on
+  the mapped table to track version numbers. this number is incremented on each
+  save operation and is specified in the UPDATE/DELETE conditions so that it
+  factors into the returned row count, which results in a ConcurrencyError if the
+  value received is not the expected count.
+- added ‘entity_name’ keyword argument to mapper. a mapper is now associated
+  with a class via the class object as well as an optional entity_name parameter,
+  which is a string defaulting to None. any number of primary mappers can be
+  created for a class, qualified by the entity name. instances of those classes
+  will issue all of their load and save operations through their
+  entity_name-qualified mapper, and maintain separate a identity in the identity
+  map for an otherwise equivalent object.
+- overhaul to the attributes system. code has been clarified, and also fixed to
+  support proper polymorphic behavior on object attributes.
+- added “for_update” flag to Select objects
+- some fixes for backrefs
+- fix for postgres1 DateTime type
+- documentation pages mostly switched over to Markdown syntax
+
+## 0.1.5
+
+Released: Mon Mar 27 2006
+
+- added SQLSession concept to SQLEngine. this object keeps track of retrieving a
+  connection from the connection pool as well as an in-progress transaction.
+  methods push_session() and pop_session() added to SQLEngine which push/pop a new
+  SQLSession onto the engine, allowing operation upon a second connection “nested”
+  within the previous one, allowing nested transactions. Other tricks are sure to
+  come later regarding SQLSession.
+- added nest_on argument to objectstore.Session. This is a single SQLEngine or
+  list of engines for which push_session()/pop_session() will be called each time
+  this Session becomes the active session (via objectstore.push_session() or
+  equivalent). This allows a unit of work Session to take advantage of the nested
+  transaction feature without explicitly calling push_session/pop_session on the
+  engine.
+- factored apart objectstore/unitofwork to separate “Session scoping” from
+  “uow commit heavy lifting”
+- added populate_instance() method to MapperExtension. allows an extension to
+  modify the population of object attributes. this method can call the
+  populate_instance() method on another mapper to proxy the attribute population
+  from one mapper to another; some row translation logic is also built in to help
+  with this.
+- fixed Oracle8-compatibility “use_ansi” flag which converts JOINs to
+  comparisons with the = and (+) operators, passes basic unittests
+- tweaks to Oracle LIMIT/OFFSET support
+- Oracle reflection uses ALL_** views instead of USER_** to get larger
+  list of stuff to reflect from
+- fixes to Oracle foreign key reflection
+  References: [#105](https://www.sqlalchemy.org/trac/ticket/105)
+- objectstore.commit(obj1, obj2,…) adds an extra step to seek out private
+  relations on properties and delete child objects, even though its not a global
+  commit
+- lots and lots of fixes to mappers which use inheritance, strengthened the
+  concept of relations on a mapper being made towards the “local” table for that
+  mapper, not the tables it inherits.  allows more complex compositional patterns
+  to work with lazy/eager loading.
+- added support for mappers to inherit from others based on the same table,
+  just specify the same table as that of both parent/child mapper.
+- some minor speed improvements to the attributes system with regards to
+  instantiating and populating new objects.
+- fixed MySQL binary unit test
+- INSERTs can receive clause elements as VALUES arguments, not just literal
+  values
+- support for calling multi-tokened functions, i.e. schema.mypkg.func()
+- added J. Ellis’ SQLSoup module to extensions package
+- added “polymorphic” examples illustrating methods to load multiple object types
+  from one mapper, the second of which uses the new populate_instance() method.
+  small improvements to mapper, UNION construct to help the examples along
+- improvements/fixes to session.refresh()/session.expire() (which may have
+  been called “invalidate” earlier..)
+- added session.expunge() which totally removes an object from the current
+  session
+- added *args, **kwargs pass-through to engine.transaction(func) allowing easier
+  creation of transactionalizing decorator functions
+- added iterator interface to ResultProxy:  “for row in result:…”
+- added assertion to tx = session.begin(); tx.rollback(); tx.begin(), i.e. can’t
+  use it after a rollback()
+- added date conversion on bind parameter fix to SQLite enabling dates to
+  work with pysqlite1
+- improvements to subqueries to more intelligently construct their FROM
+  clauses
+  References: [#116](https://www.sqlalchemy.org/trac/ticket/116)
+- added PickleType to types.
+- fixed two bugs with column labels with regards to bind parameters: bind param
+  keynames they are now generated from a column “label” in all relevant cases to
+  take advantage of excess-name-length rules, and checks for a peculiar collision
+  against a column named the same as “tablename_colname” added
+- major overhaul to unit of work documentation, other documentation sections.
+- fixed attributes bug where if an object is committed, its lazy-loaded list got
+  blown away if it hadn’t been loaded
+- added unique_connection() method to engine, connection pool to return a
+  connection that is not part of the thread-local context or any current
+  transaction
+- added invalidate() function to pooled connection.  will remove the connection
+  from the pool.  still need work for engines to auto-reconnect to a stale DB
+  though.
+- added distinct() function to column elements so you can do
+  func.count(mycol.distinct())
+- added “always_refresh” flag to Mapper, creates a mapper that will always
+  refresh the attributes of objects it gets/selects from the DB, overwriting any
+  changes made.
+
+## 0.1.4
+
+Released: Mon Mar 13 2006
+
+- create_engine() now uses genericized parameters; host/hostname,
+  db/dbname/database, password/passwd, etc. for all engine connections. makes
+  engine URIs much more “universal”
+- added support for SELECT statements embedded into a column clause, using the
+  flag “scalar=True”
+- another overhaul to EagerLoading when used in conjunction with mappers that
+  inherit; improvements to eager loads figuring out their aliased queries
+  correctly, also relations set up against a mapper with inherited mappers will
+  create joins against the table that is specific to the mapper itself (i.e. and
+  not any tables that are inherited/are further down the inheritance chain),
+  this can be overridden by using custom primary/secondary joins.
+- added J.Ellis patch to mapper.py so that selectone() throws an exception
+  if query returns more than one object row, selectfirst() to not throw the
+  exception. also adds selectfirst_by (synonymous with get_by) and selectone_by
+- added onupdate parameter to Column, will exec SQL/python upon an update
+  statement.Also adds “for_update=True” to all DefaultGenerator subclasses
+- added support for Oracle table reflection contributed by Andrija Zaric;
+  still some bugs to work out regarding composite primary keys/dictionary selection
+- checked in an initial Firebird module, awaiting testing.
+- added sql.ClauseParameters dictionary object as the result for
+  compiled.get_params(), does late-typeprocessing of bind parameters so
+  that the original values are easier to access
+- more docs for indexes, column defaults, connection pooling, engine construction
+- overhaul to the construction of the types system. uses a simpler inheritance
+  pattern so that any of the generic types can be easily subclassed, with no need
+  for TypeDecorator.
+- added “convert_unicode=False” parameter to SQLEngine, will cause all String
+  types to perform unicode encoding/decoding (makes Strings act like Unicodes)
+- added ‘encoding=”utf8”’ parameter to engine.  the given encoding will be
+  used for all encode/decode calls within Unicode types as well as Strings
+  when convert_unicode=True.
+- improved support for mapping against UNIONs, added polymorph.py example
+  to illustrate multi-class mapping against a UNION
+- fix to SQLite LIMIT/OFFSET syntax
+- fix to Oracle LIMIT syntax
+- added backref() function, allows backreferences to have keyword arguments
+  that will be passed to the backref.
+- Sequences and ColumnDefault objects can do execute()/scalar() standalone
+- SQL functions (i.e. func.foo()) can do execute()/scalar() standalone
+- fix to SQL functions so that the ANSI-standard functions, i.e. current_timestamp
+  etc., do not specify parenthesis.  all other functions do.
+- added settattr_clean and append_clean to SmartProperty, which set
+  attributes without triggering a “dirty” event or any history. used as:
+  myclass.prop1.setattr_clean(myobject, ‘hi’)
+- improved support to column defaults when used by mappers; mappers will pull
+  pre-executed defaults from statement’s executed bind parameters
+  (pre-conversion) to populate them into a saved object’s attributes; if any
+  PassiveDefaults have fired off, will instead post-fetch the row from the DB to
+  populate the object.
+- added ‘get_session().invalidate(*obj)’ method to objectstore, instances will
+  refresh() themselves upon the next attribute access.
+- improvements to SQL func calls including an “engine” keyword argument so
+  they can be execute()d or scalar()ed standalone, also added func accessor to
+  SQLEngine
+- fix to MySQL4 custom table engines, i.e. TYPE instead of ENGINE
+- slightly enhanced logging, includes timestamps and a somewhat configurable
+  formatting system, in lieu of a full-blown logging system
+- improvements to the ActiveMapper class from the TG gang, including
+  many-to-many relationships
+- added Double and TinyInt support to mysql
+
+## 0.1.3
+
+Released: Thu Mar 02 2006
+
+- completed “post_update” feature, will add a second update statement before
+  inserts and after deletes in order to reconcile a relationship without any
+  dependencies being created; used when persisting two rows that are dependent
+  on each other
+- completed mapper.using(session) function, localized per-object Session
+  functionality; objects can be declared and manipulated as local to any
+  user-defined Session
+- fix to Oracle “row_number over” clause with multiple tables
+- mapper.get() was not selecting multiple-keyed objects if the mapper’s table was a join,
+  such as in an inheritance relationship, this is fixed.
+- overhaul to sql/schema packages so that the sql package can run all on its own,
+  producing selects, inserts, etc. without any engine dependencies.  builds upon
+  new TableClause/ColumnClause lexical objects.  Schema’s Table/Column objects
+  are the “physical” subclasses of them.  simplifies schema/sql relationship,
+  extensions (like proxyengine), and speeds overall performance by a large margin.
+  removes the entire getattr() behavior that plagued 0.1.1.
+- refactoring of how the mapper “synchronizes” data between two objects into a
+  separate module, works better with properties attached to a mapper that has an
+  additional inheritance relationship to one of the related tables, also the same
+  methodology used to synchronize parent/child objects now used by mapper to
+  synchronize between inherited and inheriting mappers.
+- made objectstore “check for out-of-identitymap” more aggressive, will perform the
+  check when object attributes are modified or the object is deleted
+- Index object fully implemented, can be constructed standalone, or via
+  “index” and “unique” arguments on Columns.
+- added “convert_unicode” flag to SQLEngine, will treat all String/CHAR types
+  as Unicode types, with raw-byte/utf-8 translation on the bind parameter and
+  result set side.
+- postgres maintains a list of ANSI functions that must have no parenthesis so
+  function calls with no arguments work consistently
+- tables can be created with no engine specified.  this will default their engine
+  to a module-scoped “default engine” which is a ProxyEngine.  this engine can
+  be connected via the function “global_connect”.
+- added “refresh(*obj)” method to objectstore / Session to reload the attributes of
+  any set of objects from the database unconditionally
+
+## 0.1.2
+
+Released: Fri Feb 24 2006
+
+- fixed a recursive call in schema that was somehow running 994 times then returning
+  normally.  broke nothing, slowed down everything.  thanks to jpellerin for finding this.
+
+## 0.1.1
+
+Released: Thu Feb 23 2006
+
+- small fix to Function class so that expressions with a func.foo() use the type of the
+  Function object (i.e. the left side) as the type of the boolean expression, not the
+  other side which is more of a moving target (changeset 1020).
+- creating self-referring mappers with backrefs slightly easier (but still not that easy -
+  changeset 1019)
+- fixes to one-to-one mappings (changeset 1015)
+- psycopg1 date/time issue with None fixed (changeset 1005)
+- two issues related to postgres, which doesn’t want to give you the “lastrowid”
+  since oids are deprecated:
+  > - postgres database-side defaults that are on primary key cols *do* execute
+  >   explicitly beforehand, even though that’s not the idea of a PassiveDefault.  this is
+  >   because sequences on columns get reflected as PassiveDefaults, but need to be explicitly
+  >   executed on a primary key col so we know what we just inserted.
+  > - if you did add a row that has a bunch of database-side defaults on it,
+  >   and the PassiveDefault thing was working the old way, i.e. they just execute on
+  >   the DB side, the “can’t get the row back without an OID” exception that occurred
+  >   also will not happen unless someone (usually the ORM) explicitly asks for it.
+- fixed a glitch with engine.execute_compiled where it was making a second
+  ResultProxy that just got thrown away.
+- began to implement newer logic in object properties.  you can now say
+  myclass.attr.property, which will give you the PropertyLoader corresponding to that
+  attribute, i.e. myclass.mapper.props[‘attr’]
+- eager loading has been internally overhauled to use aliases at all times.  more
+  complicated chains of eager loads can now be created without any need for explicit
+  “use aliases”-type instructions.  EagerLoader code is also much simpler now.
+- a new somewhat experimental flag “use_update” added to relations, indicates that
+  this relationship should be handled by a second UPDATE statement, either after a
+  primary INSERT or before a primary DELETE.  handles circular row dependencies.
+- added exceptions module, all raised exceptions (except for some
+  KeyError/AttributeError exceptions) descend from these classes.
+- fix to date types with MySQL, returned timedelta converted to datetime.time
+- two-phase objectstore.commit operations (i.e. begin/commit) now return a
+  transactional object (SessionTrans), to more clearly indicate transaction boundaries.
+- Index object with create/drop support added to schema
+- fix to postgres, where it will explicitly pre-execute a PassiveDefault on a table
+  if it is a primary key column, pursuant to the ongoing “we can’t get inserted rows
+  back from postgres” issue
+- change to information_schema query that gets back postgres table defs, now
+  uses explicit JOIN keyword, since one user had faster performance with 8.1
+- fix to engine.process_defaults so it works correctly with a table that has
+  different column name/column keys (changeset 982)
+- a column can only be attached to one table - this is now asserted
+- postgres time types descend from Time type
+- fix to alltests so that it runs types test (now named testtypes)
+- fix to Join object so that it correctly exports its foreign keys (cs 973)
+- creating relationships against mappers that use inheritance fixed (cs 973)
+
+---
+
+# SQLAlchemy 2.0 Documentation
+
+# 0.2 Changelog
+
+## 0.2.8
+
+Released: Tue Sep 05 2006
+
+- cleanup on connection methods + documentation.  custom DBAPI
+  arguments specified in query string, ‘connect_args’ argument
+  to ‘create_engine’, or custom creation function via ‘creator’
+  function to ‘create_engine’.
+- added “recycle” argument to Pool, is “pool_recycle” on create_engine,
+  defaults to 3600 seconds; connections after this age will be closed and
+  replaced with a new one, to handle db’s that automatically close
+  stale connections
+  References: [#274](https://www.sqlalchemy.org/trac/ticket/274)
+- changed “invalidate” semantics with pooled connection; will
+  instruct the underlying connection record to reconnect the next
+  time its called.  “invalidate” will also automatically be called
+  if any error is thrown in the underlying call to connection.cursor().
+  this will hopefully allow the connection pool to reconnect to a
+  database that had been stopped and started without restarting
+  the connecting application
+  References: [#121](https://www.sqlalchemy.org/trac/ticket/121)
+- eesh !  the tutorial doctest was broken for quite some time.
+- add_property() method on mapper does a “compile all mappers”
+  step in case the given property references a non-compiled mapper
+  (as it did in the case of the tutorial !)
+- check for pg sequence already existing before create
+  References: [#277](https://www.sqlalchemy.org/trac/ticket/277)
+- if a contextual session is established via MapperExtension.get_session
+  (as it is using the sessioncontext plugin, etc), a lazy load operation
+  will use that session by default if the parent object is not
+  persistent with a session already.
+- lazy loads will not fire off for an object that does not have a
+  database identity (why?
+  see [https://www.sqlalchemy.org/trac/wiki/WhyDontForeignKeysLoadData](https://www.sqlalchemy.org/trac/wiki/WhyDontForeignKeysLoadData))
+- unit-of-work does a better check for “orphaned” objects that are
+  part of a “delete-orphan” cascade, for certain conditions where the
+  parent isn’t available to cascade from.
+- mappers can tell if one of their objects is an “orphan” based
+  on interactions with the attribute package. this check is based
+  on a status flag maintained for each relationship
+  when objects are attached and detached from each other.
+- it is now invalid to declare a self-referential relationship with
+  “delete-orphan” (as the abovementioned check would make them impossible
+  to save)
+- improved the check for objects being part of a session when the
+  unit of work seeks to flush() them as part of a relationship..
+- statement execution supports using the same BindParam
+  object more than once in an expression; simplified handling of positional
+  parameters.  nice job by Bill Noon figuring out the basic idea.
+  References: [#280](https://www.sqlalchemy.org/trac/ticket/280)
+- postgres reflection moved to use pg_schema tables, can be overridden
+  with use_information_schema=True argument to create_engine.
+  References: [#60](https://www.sqlalchemy.org/trac/ticket/60), [#71](https://www.sqlalchemy.org/trac/ticket/71)
+- added case_sensitive argument to MetaData, Table, Column, determines
+  itself automatically based on if a parent schemaitem has a non-None
+  setting for the flag, or if not, then whether the identifier name is all lower
+  case or not.  when set to True, quoting is applied to identifiers with mixed or
+  uppercase identifiers.  quoting is also applied automatically in all cases to
+  identifiers that are known to be reserved words or contain other non-standard
+  characters. various database dialects can override all of this behavior, but
+  currently they are all using the default behavior.  tested with postgres, mysql,
+  sqlite, oracle.  needs more testing with firebird, ms-sql. part of the ongoing
+  work with
+  References: [#155](https://www.sqlalchemy.org/trac/ticket/155)
+- unit tests updated to run without any pysqlite installed; pool
+  test uses a mock DBAPI
+- urls support escaped characters in passwords
+  References: [#281](https://www.sqlalchemy.org/trac/ticket/281)
+- added limit/offset to UNION queries (though not yet in oracle)
+- added “timezone=True” flag to DateTime and Time types.  postgres
+  so far will convert this to “TIME[STAMP] (WITH|WITHOUT) TIME ZONE”,
+  so that control over timezone presence is more controllable (psycopg2
+  returns datetimes with tzinfo’s if available, which can create confusion
+  against datetimes that don’t).
+- fix to using query.count() with distinct, **kwargs with SelectResults
+  count()
+  References: [#287](https://www.sqlalchemy.org/trac/ticket/287)
+- deregister Table from MetaData when autoload fails;
+  References: [#289](https://www.sqlalchemy.org/trac/ticket/289)
+- import of py2.5s sqlite3
+  References: [#293](https://www.sqlalchemy.org/trac/ticket/293)
+- unicode fix for startswith()/endswith()
+  References: [#296](https://www.sqlalchemy.org/trac/ticket/296)
+
+## 0.2.7
+
+Released: Sat Aug 12 2006
+
+- quoting facilities set up so that database-specific quoting can be
+  turned on for individual table, schema, and column identifiers when
+  used in all queries/creates/drops.  Enabled via “quote=True” in
+  Table or Column, as well as “quote_schema=True” in Table.  Thanks to
+  Aaron Spike for the excellent efforts.
+- assignmapper was setting is_primary=True, causing all sorts of mayhem
+  by not raising an error when redundant mappers were set up, fixed
+- added allow_null_pks option to Mapper, allows rows where some
+  primary key columns are null (i.e. when mapping to outer joins etc)
+- modification to unitofwork to not maintain ordering within the
+  “new” list or within the UOWTask “objects” list; instead, new objects
+  are tagged with an ordering identifier as they are registered as new
+  with the session, and the INSERT statements are then sorted within the
+  mapper save_obj.  the INSERT ordering has basically been pushed all
+  the way to the end of the flush cycle. that way the various sorts and
+  organizations occurring within UOWTask (particularly the circular task
+  sort) don’t have to worry about maintaining order (which they weren’t anyway)
+- fixed reflection of foreign keys to autoload the referenced table
+  if it was not loaded already
+- - pass URL query string arguments to connect() function
+  References: [#256](https://www.sqlalchemy.org/trac/ticket/256)
+- - oracle boolean type
+  References: [#257](https://www.sqlalchemy.org/trac/ticket/257)
+- custom primary/secondary join conditions in a relation *will* be propagated
+  to backrefs by default.  specifying a backref() will override this behavior.
+- better check for ambiguous join conditions in sql.Join; propagates to a
+  better error message in PropertyLoader (i.e. relation()/backref()) for when
+  the join condition can’t be reasonably determined.
+- sqlite creates ForeignKeyConstraint objects properly upon table
+  reflection.
+- adjustments to pool stemming from changes made for.
+  overflow counter should only be decremented if the connection actually
+  succeeded.  added a test script to attempt testing this.
+  References: [#224](https://www.sqlalchemy.org/trac/ticket/224)
+- fixed mysql reflection of default values to be PassiveDefault
+- added reflected ‘tinyint’, ‘mediumint’ type to MS-SQL.
+  References: [#263](https://www.sqlalchemy.org/trac/ticket/263), [#264](https://www.sqlalchemy.org/trac/ticket/264)
+- SingletonThreadPool has a size and does a cleanup pass, so that
+  only a given number of thread-local connections stay around (needed
+  for sqlite applications that dispose of threads en masse)
+- fixed small pickle bug(s) with lazy loaders
+  References: [#265](https://www.sqlalchemy.org/trac/ticket/265), [#267](https://www.sqlalchemy.org/trac/ticket/267)
+- fixed possible error in mysql reflection where certain versions
+  return an array instead of string for SHOW CREATE TABLE call
+- fix to lazy loads when mapping to joins
+  References: [#1770](https://www.sqlalchemy.org/trac/ticket/1770)
+- all create()/drop() calls have a keyword argument of “connectable”.
+  “engine” is deprecated.
+- fixed ms-sql connect() to work with adodbapi
+- added “nowait” flag to Select()
+- inheritance check uses issubclass() instead of direct __mro__ check
+  to make sure class A inherits from B, allowing mapper inheritance to more
+  flexibly correspond to class inheritance
+  References: [#271](https://www.sqlalchemy.org/trac/ticket/271)
+- SelectResults will use a subselect, when calling an aggregate (i.e.
+  max, min, etc.) on a SelectResults that has an ORDER BY clause
+  References: [#252](https://www.sqlalchemy.org/trac/ticket/252)
+- fixes to types so that database-specific types more easily used;
+  fixes to mysql text types to work with this methodology
+  References: [#269](https://www.sqlalchemy.org/trac/ticket/269)
+- some fixes to sqlite date type organization
+- added MSTinyInteger to MS-SQL
+  References: [#263](https://www.sqlalchemy.org/trac/ticket/263)
+
+## 0.2.6
+
+Released: Thu Jul 20 2006
+
+- big overhaul to schema to allow truly composite primary and foreign
+  key constraints, via new ForeignKeyConstraint and PrimaryKeyConstraint
+  objects.
+  Existing methods of primary/foreign key creation have not been changed
+  but use these new objects behind the scenes.  table creation
+  and reflection is now more table oriented rather than column oriented.
+  References: [#76](https://www.sqlalchemy.org/trac/ticket/76)
+- overhaul to MapperExtension calling scheme, wasn’t working very well
+  previously
+- tweaks to ActiveMapper, supports self-referential relationships
+- slight rearrangement to objectstore (in activemapper/threadlocal)
+  so that the SessionContext is referenced by ‘.context’ instead
+  of subclassed directly.
+- activemapper will use threadlocal’s objectstore if the mod is
+  activated when activemapper is imported
+- small fix to URL regexp to allow filenames with ‘@’ in them
+- fixes to Session expunge/update/etc…needs more cleanup.
+- select_table mappers *still* weren’t always compiling
+- fixed up Boolean datatype
+- added count()/count_by() to list of methods proxied by assignmapper;
+  this also adds them to activemapper
+- connection exceptions wrapped in DBAPIError
+- ActiveMapper now supports autoloading column definitions from the
+  database if you supply a __autoload__ = True attribute in your
+  mapping inner-class.  Currently this does not support reflecting
+  any relationships.
+- deferred column load could screw up the connection status in
+  a flush() under some circumstances, this was fixed
+- expunge() was not working with cascade, fixed.
+- potential endless loop in cascading operations fixed.
+- added “synonym()” function, applied to properties to have a
+  propname the same as another, for the purposes of overriding props
+  and allowing the original propname to be accessible in select_by().
+- fix to typing in clause construction which specifically helps
+  type issues with polymorphic_union (CAST/ColumnClause propagates
+  its type to proxy columns)
+- mapper compilation work ongoing, someday it’ll work….moved
+  around the initialization of MapperProperty objects to be after
+  all mappers are created to better handle circular compilations.
+  do_init() method is called on all properties now which are more
+  aware of their “inherited” status if so.
+- eager loads explicitly disallowed on self-referential relationships, or
+  relationships to an inheriting mapper (which is also self-referential)
+- reduced bind param size in query._get to appease the picky oracle
+  References: [#244](https://www.sqlalchemy.org/trac/ticket/244)
+- added ‘checkfirst’ argument to table.create()/table.drop(), as
+  well as table.exists()
+  References: [#234](https://www.sqlalchemy.org/trac/ticket/234)
+- some other ongoing fixes to inheritance
+  References: [#245](https://www.sqlalchemy.org/trac/ticket/245)
+- attribute/backref/orphan/history-tracking tweaks as usual…
+
+## 0.2.5
+
+Released: Sat Jul 08 2006
+
+- fixed endless loop bug in select_by(), if the traversal hit
+  two mappers that referenced each other
+- upgraded all unittests to insert ‘./lib/’ into sys.path,
+  working around new setuptools PYTHONPATH-killing behavior
+- further fixes with attributes/dependencies/etc….
+- improved error handling for when DynamicMetaData is not connected
+- MS-SQL support largely working (tested with pymssql)
+- ordering of UPDATE and DELETE statements within groups is now
+  in order of primary key values, for more deterministic ordering
+- after_insert/delete/update mapper extensions now called per object,
+  not per-object-per-table
+- further fixes/refactorings to mapper compilation
+
+## 0.2.4
+
+Released: Tue Jun 27 2006
+
+- try/except when the mapper sets init.__name__ on a mapped class,
+  supports python 2.3
+- fixed bug where threadlocal engine would still autocommit
+  despite a transaction in progress
+- lazy load and deferred load operations require the parent object
+  to be in a Session to do the operation; whereas before the operation
+  would just return a blank list or None, it now raises an exception.
+- Session.update() is slightly more lenient if the session to which
+  the given object was formerly attached to was garbage collected;
+  otherwise still requires you explicitly remove the instance from
+  the previous Session.
+- fixes to mapper compilation, checking for more error conditions
+- small fix to eager loading combined with ordering/limit/offset
+- utterly remarkable:  added a single space between ‘CREATE TABLE’
+  and ‘(<the rest of it>’ since *that’s how MySQL indicates a non-
+  reserved word tablename…..*
+  References: [#206](https://www.sqlalchemy.org/trac/ticket/206)
+- more fixes to inheritance, related to many-to-many relations
+  properly saving
+- fixed bug when specifying explicit module to mysql dialect
+- when QueuePool times out it raises a TimeoutError instead of
+  erroneously making another connection
+- Queue.Queue usage in pool has been replaced with a locally
+  modified version (works in py2.3/2.4!) that uses a threading.RLock
+  for a mutex.  this is to fix a reported case where a ConnectionFairy’s
+  __del__() method got called within the Queue’s get() method, which
+  then returns its connection to the Queue via the put() method,
+  causing a reentrant hang unless threading.RLock is used.
+- postgres will not place SERIAL keyword on a primary key column
+  if it has a foreign key constraint
+- cursor() method on ConnectionFairy allows db-specific extension
+  arguments to be propagated
+  References: [#221](https://www.sqlalchemy.org/trac/ticket/221)
+- lazy load bind params properly propagate column type
+  References: [#225](https://www.sqlalchemy.org/trac/ticket/225)
+- new MySQL types: MSEnum, MSTinyText, MSMediumText, MSLongText, etc.
+  more support for MS-specific length/precision params in numeric types
+  patch courtesy Mike Bernson
+- some fixes to connection pool invalidate()
+  References: [#224](https://www.sqlalchemy.org/trac/ticket/224)
+
+## 0.2.3
+
+Released: Sat Jun 17 2006
+
+- overhaul to mapper compilation to be deferred.  this allows mappers
+  to be constructed in any order, and their relationships to each
+  other are compiled when the mappers are first used.
+- fixed a pretty big speed bottleneck in cascading behavior particularly
+  when backrefs were in use
+- the attribute instrumentation module has been completely rewritten; its
+  now a large degree simpler and clearer, slightly faster.  the “history”
+  of an attribute is no longer micromanaged with each change and is
+  instead part of a “CommittedState” object created when the
+  instance is first loaded.  HistoryArraySet is gone, the behavior of
+  list attributes is now more open ended (i.e. they’re not sets anymore).
+- py2.4 “set” construct used internally, falls back to sets.Set when
+  “set” not available/ordering is needed.
+- fix to transaction control, so that repeated rollback() calls
+  don’t fail (was failing pretty badly when flush() would raise
+  an exception in a larger try/except transaction block)
+- ”foreignkey” argument to relation() can also be a list.  fixed
+  auto-foreignkey detection
+  References: [#151](https://www.sqlalchemy.org/trac/ticket/151)
+- fixed bug where tables with schema names weren’t getting indexed in
+  the MetaData object properly
+- fixed bug where Column with redefined “key” property wasn’t getting
+  type conversion happening in the ResultProxy
+  References: [#207](https://www.sqlalchemy.org/trac/ticket/207)
+- fixed ‘port’ attribute of URL to be an integer if present
+- fixed old bug where if a many-to-many table mapped as “secondary”
+  had extra columns, delete operations didn’t work
+- bugfixes for mapping against UNION queries
+- fixed incorrect exception class thrown when no DB driver present
+- added NonExistentTable exception thrown when reflecting a table
+  that doesn’t exist
+  References: [#138](https://www.sqlalchemy.org/trac/ticket/138)
+- small fix to ActiveMapper regarding one-to-one backrefs, other
+  refactorings
+- overridden constructor in mapped classes gets __name__ and
+  __doc__ from the original class
+- fixed small bug in selectresult.py regarding mapper extension
+  References: [#200](https://www.sqlalchemy.org/trac/ticket/200)
+- small tweak to cascade_mappers, not very strongly supported
+  function at the moment
+- some fixes to between(), column.between() to propagate typing
+  information better
+  References: [#202](https://www.sqlalchemy.org/trac/ticket/202)
+- if an object fails to be constructed, is not added to the
+  session
+  References: [#203](https://www.sqlalchemy.org/trac/ticket/203)
+- CAST function has been made into its own clause object with
+  its own compilation function in ansicompiler; allows MySQL
+  to silently ignore most CAST calls since MySQL
+  seems to only support the standard CAST syntax with Date types.
+  MySQL-compatible CAST support for strings, ints, etc. a TODO
+
+## 0.2.2
+
+Released: Mon Jun 05 2006
+
+- big improvements to polymorphic inheritance behavior, enabling it
+  to work with adjacency list table structures
+  References: [#190](https://www.sqlalchemy.org/trac/ticket/190)
+- major fixes and refactorings to inheritance relationships overall,
+  more unit tests
+- fixed “echo_pool” flag on create_engine()
+- fix to docs, removed incorrect info that close() is unsafe to use
+  with threadlocal strategy (its totally safe !)
+- create_engine() can take URLs as string or unicode
+  References: [#188](https://www.sqlalchemy.org/trac/ticket/188)
+- firebird support partially completed;
+  thanks to James Ralston and Brad Clements for their efforts.
+- Oracle url translation was broken, fixed, will feed host/port/sid
+  into cx_oracle makedsn() if ‘database’ field is present, else uses
+  straight TNS name from the ‘host’ field
+- fix to using unicode criterion for query.get()/query.load()
+- count() function on selectables now uses table primary key or
+  first column instead of “1” for criterion, also uses label “rowcount”
+  instead of “count”.
+- got rudimental “mapping to multiple tables” functionality cleaned up,
+  more correctly documented
+- restored global_connect() function, attaches to a DynamicMetaData
+  instance called “default_metadata”.  leaving MetaData arg to Table
+  out will use the default metadata.
+- fixes to session cascade behavior, entity_name propagation
+- reorganized unittests into subdirectories
+- more fixes to threadlocal connection nesting patterns
+
+## 0.2.1
+
+Released: Mon May 29 2006
+
+- ”pool” argument to create_engine() properly propagates
+- fixes to URL, raises exception if not parsed, does not pass blank
+  fields along to the DB connect string (a string such as
+  user:host@/db was breaking on postgres)
+- small fixes to Mapper when it inserts and tries to get
+  new primary key values back
+- rewrote half of TLEngine, the ComposedSQLEngine used with
+  ‘strategy=”threadlocal”’.  it now properly implements engine.begin()/
+  engine.commit(), which nest fully with connection.begin()/trans.commit().
+  added about six unittests.
+- major “duh” in pool.Pool, forgot to put back the WeakValueDictionary.
+  unittest which was supposed to check for this was also silently missing
+  it.  fixed unittest to ensure that ConnectionFairy properly falls out
+  of scope.
+- placeholder dispose() method added to SingletonThreadPool, doesn’t
+  do anything yet
+- rollback() is automatically called when an exception is raised,
+  but only if there’s no transaction in process (i.e. works more like
+  autocommit).
+- fixed exception raise in sqlite if no sqlite module present
+- added extra example detail for association object doc
+- Connection adds checks for already being closed
+
+## 0.2.0
+
+Released: Sat May 27 2006
+
+- overhaul to Engine system so that what was formerly the SQLEngine
+  is now a ComposedSQLEngine which consists of a variety of components,
+  including a Dialect, ConnectionProvider, etc. This impacted all the
+  db modules as well as Session and Mapper.
+- create_engine now takes only RFC-1738-style strings:
+  `driver://user:password@host:port/database`
+  **update** this format is generally but not exactly RFC-1738,
+  including that underscores, not dashes or periods, are accepted in the
+  “scheme” portion.
+- total rewrite of connection-scoping methodology, Connection objects
+  can now execute clause elements directly, added explicit “close” as
+  well as support throughout Engine/ORM to handle closing properly,
+  no longer relying upon __del__ internally to return connections
+  to the pool.
+  References: [#152](https://www.sqlalchemy.org/trac/ticket/152)
+- overhaul to Session interface and scoping.  uses hibernate-style
+  methods, including query(class), save(), save_or_update(), etc.
+  no threadlocal scope is installed by default.  Provides a binding
+  interface to specific Engines and/or Connections so that underlying
+  Schema objects do not need to be bound to an Engine.  Added a basic
+  SessionTransaction object that can simplistically aggregate transactions
+  across multiple engines.
+- overhaul to mapper’s dependency and “cascade” behavior; dependency logic
+  factored out of properties.py into a separate module “dependency.py”.
+  “cascade” behavior is now explicitly controllable, proper implementation
+  of “delete”, “delete-orphan”, etc.  dependency system can now determine at
+  flush time if a child object has a parent or not so that it makes better
+  decisions on how that child should be updated in the DB with regards to deletes.
+- overhaul to Schema to build upon MetaData object instead of an Engine.
+  Entire SQL/Schema system can be used with no Engines whatsoever, executed
+  solely by an explicit Connection object.  the “bound” methodology exists via the
+  BoundMetaData for schema objects.  ProxyEngine is generally not needed
+  anymore and is replaced by DynamicMetaData.
+- true polymorphic behavior implemented, fixes
+  References: [#167](https://www.sqlalchemy.org/trac/ticket/167)
+- ”oid” system has been totally moved into compile-time behavior;
+  if they are used in an order_by where they are not available, the order_by
+  doesn’t get compiled, fixes
+  References: [#147](https://www.sqlalchemy.org/trac/ticket/147)
+- overhaul to packaging; “mapping” is now “orm”, “objectstore” is now
+  “session”, the old “objectstore” namespace gets loaded in via the
+  “threadlocal” mod if used
+- mods now called in via “import <modname>”.  extensions favored over
+  mods as mods are globally-monkeypatching
+- fix to add_property so that it propagates properties to inheriting
+  mappers
+  References: [#154](https://www.sqlalchemy.org/trac/ticket/154)
+- backrefs create themselves against primary mapper of its originating
+  property, primary/secondary join arguments can be specified to override.
+  helps their usage with polymorphic mappers
+- ”table exists” function has been implemented
+  References: [#31](https://www.sqlalchemy.org/trac/ticket/31)
+- ”create_all/drop_all” added to MetaData object
+  References: [#98](https://www.sqlalchemy.org/trac/ticket/98)
+- improvements and fixes to topological sort algorithm, as well as more
+  unit tests
+- tutorial page added to docs which also can be run with a custom doctest
+  runner to ensure its properly working.  docs generally overhauled to
+  deal with new code patterns
+- many more fixes, refactorings.
+- migration guide is available on the Wiki at
+  [https://www.sqlalchemy.org/trac/wiki/02Migration](https://www.sqlalchemy.org/trac/wiki/02Migration)

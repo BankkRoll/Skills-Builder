@@ -1,0 +1,30 @@
+# Testing in Django¶ and more
+
+# Testing in Django¶
+
+# Testing in Django¶
+
+Automated testing is an extremely useful bug-killing tool for the modern
+web developer. You can use a collection of tests – a **test suite** – to
+solve, or avoid, a number of problems:
+
+- When you're writing new code, you can use tests to validate your code
+  works as expected.
+- When you're refactoring or modifying old code, you can use tests to
+  ensure your changes haven't affected your application's behavior
+  unexpectedly.
+
+Testing a web application is a complex task, because a web application is made
+of several layers of logic – from HTTP-level request handling, to form
+validation and processing, to template rendering. With Django's test-execution
+framework and assorted utilities, you can simulate requests, insert test data,
+inspect your application's output and generally verify your code is doing what
+it should be doing.
+
+The preferred way to write tests in Django is using the [unittest](https://docs.python.org/3/library/unittest.html#module-unittest) module
+built-in to the Python standard library. This is covered in detail in the
+[Writing and running tests](https://docs.djangoproject.com/en/5.0/topics/overview/) document.
+
+You can also use any *other* Python test framework; Django provides an API and
+tools for that kind of integration. They are described in the
+[Using different testing frameworks](https://docs.djangoproject.com/en/5.0/topics/advanced/#other-testing-frameworks) section of [Advanced testing topics](https://docs.djangoproject.com/en/5.0/topics/advanced/).
